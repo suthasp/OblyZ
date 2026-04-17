@@ -48,7 +48,7 @@
 <div id="app">
   <div id="ui">
     <div id="title-box">
-      🏢 3D Containment TOC-RST
+      🏢 3D Containment NFV Room TOC-RST
       <span>Data Center — Hot/Cold Aisle Layout</span>
     </div>
     <div id="controls-box">
@@ -60,7 +60,7 @@
 
   <div id="legend">
     <h4>สัญลักษณ์</h4>
-    <div class="leg"><div class="lbox" style="background:#1a44bb"></div> RAC Rack (ชั้นสูง)</div>
+    <div class="leg"><div class="lbox" style="background:#1a44bb"></div> RAC (In-row cooling systems)</div>
     <div class="leg"><div class="lbox" style="background:#3a4a5a"></div> Standard Rack</div>
     <div class="leg"><div class="lbox" style="background:#44aaff;opacity:0.5"></div> กระจกใส (Containment)</div>
     <div class="leg"><div class="lbox" style="background:#44aaff;opacity:0.6"></div> ประตูเลื่อน</div>
@@ -564,11 +564,11 @@ function buildLabels() {
   scene.add(hotLblR);
 
   // Row labels
-  const rowALbl = makeBigLabel('ROW DA', '#88aaff', 0);
+  const rowALbl = makeBigLabel('Row DA', '#88aaff', 0);
   rowALbl.position.set(AX, labelY + 0.55, C_CZ);
   scene.add(rowALbl);
 
-  const rowBLbl = makeBigLabel('ROW DB', '#88aaff', 0);
+  const rowBLbl = makeBigLabel('Row DB', '#88aaff', 0);
   rowBLbl.position.set(BX, labelY + 0.55, C_CZ);
   scene.add(rowBLbl);
 }
