@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>3D Containment - NFV Room</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#0d1117; overflow:hidden; font-family:'Segoe UI',Arial,sans-serif; touch-action:none; }
+    #app { width:100vw; height:100vh; position:relative; }
+
+    /* ── TOP-LEFT UI ── */
+    #ui {
+      position:absolute; top:10px; left:10px; z-index:10;
+      display:flex; flex-direction:column; gap:6px;
+      max-width:calc(100vw - 180px);
+    }
+    #title-box {
+      background:rgba(10,20,40,0.90); border:1px solid #1e4080;
+      border-radius:10px; padding:8px 14px;
+      color:#88ccff; font-size:clamp(12px,2.5vw,16px); font-weight:700; letter-spacing:0.4px;
+    }
+    #title-box span { color:#aad4ff; font-size:clamp(9px,1.8vw,11px); font-weight:400; display:block; margin-top:2px; }
+    #controls-box {
+      background:rgba(10,20,40,0.75); border:1px solid #1e3060;
+      border-radius:8px; padding:6px 10px; color:#8899bb;
+      font-size:clamp(9px,1.8vw,11px); line-height:1.7;
+    }
+
+    /* ── LEGEND (bottom-left) ── */
+    #legend {
+      position:absolute; bottom:10px; left:10px; z-index:10;
+      background:rgba(10,20,40,0.88); border:1px solid #1e3060;
+      border-radius:10px; color:#ccd8ee;
+      font-size:clamp(9px,1.8vw,11.5px);
+      transition:max-height 0.3s ease, padding 0.3s ease;
+      overflow:hidden;
+    }
+    #legend-header {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:8px 12px; cursor:pointer; user-select:none;
+    }
+    #legend-header h4 { color:#88ccff; font-size:clamp(10px,2vw,12px); }
+    #legend-toggle { color:#88ccff; font-size:14px; transition:transform 0.3s; }
+    #legend-body { padding:0 12px 8px; }
+    .leg { display:flex; align-items:center; gap:7px; margin:3px 0; }
+    .lbox { width:13px; height:13px; border-radius:3px; flex-shrink:0; }
+
+    /* ── RACK LIST (right) ── */
+    #rack-panel {
+      position:absolute; top:10px; right:10px; z-index:10;
+      background:rgba(10,20,40,0.88); border:1px solid #1e3060;
+      border-radius:10px; color:#ccd8ee;
+      font-size:clamp(9px,1.8vw,11px);
+      transition:max-height 0.3s ease;
+      overflow:hidden;
+      max-height:90vh;
+    }
+    #rack-header {
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding:8px 12px; cursor:pointer; user-select:none;
+    }
+    #rack-header span { color:#88ccff; font-size:clamp(10px,2vw,12px); font-weight:700; }
+    #rack-toggle { color:#88ccff; font-size:14px; transition:transform 0.3s; }
+    #rack-body { padding:0 12px 8px; overflow-y:auto; max-height:70vh; }
+    #rack-body h4 { color:#88ccff; font-size:clamp(10px,2vw,12px); margin:4px 0 3px; }
+    #rack-body hr { border:none; border-top:1px solid #1e3060; margin:5px 0; }
+    .rack-item { padding:1px 0; }
+    .rack-rac { color:#6699ff; font-weight:700; }
+
+    /* ── COLLAPSED STATE ── */
+    .collapsed #legend-body { display:none; }
+    .collapsed #rack-body   { display:none; }
+    .collapsed #legend-toggle { transform:rotate(-90deg); }
+    .collapsed #rack-toggle   { transform:rotate(-90deg); }
+
+    /* ── TABLET (≤768px) ── */
+    @media (max-width: 768px) {
+      #ui { max-width: calc(100vw - 140px); }
+      #controls-box { display:none; }   /* hide mouse hint on touch devices */
+      #touch-hint { display:flex !important; }
+    }
+
+    /* ── MOBILE (≤480px) ── */
+    @media (max-width: 480px) {
+      #ui { top:8px; left:8px; max-width:calc(100% - 16px); }
+      #rack-panel { top:auto; bottom:10px; right:8px; max-height:45vh; }
+      #rack-body  { max-height:32vh; }
+      #legend     { bottom:auto; top:8px; left:auto; right:8px; }
+      #legend-body .leg:nth-child(n+4) { display:none; } /* show top 3 only */
+    }
+
+    /* ── TOUCH HINT (hidden on desktop) ── */
+    #touch-hint {
+      display:none;
+      background:rgba(10,20,40,0.75); border:1px solid #1e3060;
+      border-radius:8px; padding:6px 10px; color:#8899bb;
+      font-size:clamp(9px,1.8vw,11px); line-height:1.7;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- TOP-LEFT: Title + Controls -->
+  <div id="ui">
+    <div id="title-box">
+      🏢 3D Containment NFV Room TOC-RST
+      <span>Data Center — Hot/Cold Aisle Layout</span>
+    </div>
+    <div id="controls-box">
+      🖱️ ลาก (ซ้าย): หมุนมุมมอง &nbsp;|&nbsp; ลาก (ขวา): เลื่อน &nbsp;|&nbsp; Scroll: ซูม
+    </div>
+    <div id="touch-hint">
+      👆 ลาก 1 นิ้ว: หมุน &nbsp;|&nbsp; 2 นิ้ว: ซูม/เลื่อน
+    </div>
+  </div>
+
+  <!-- BOTTOM-LEFT: Legend (collapsible) -->
+  <div id="legend">
+    <div id="legend-header" onclick="togglePanel('legend')">
+      <h4>สัญลักษณ์</h4>
+      <span id="legend-toggle">▾</span>
+    </div>
+    <div id="legend-body">
+      <div class="leg"><div class="lbox" style="background:#1a44bb"></div> RAC (In-row Cooling)</div>
+      <div class="leg"><div class="lbox" style="background:#3a4a5a"></div> Standard Rack</div>
+      <div class="leg"><div class="lbox" style="background:#44aaff;opacity:0.5"></div> กระจกใส (Containment)</div>
+      <div class="leg"><div class="lbox" style="background:#44aaff;opacity:0.6"></div> ประตูเลื่อน</div>
+      <div class="leg"><span style="color:#22bbff;font-size:15px">↑</span> ลมเย็น (Cold Air)</div>
+      <div class="leg"><span style="color:#ff5533;font-size:15px">↑</span> ลมร้อน (Hot Air)</div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Rack List (collapsible) -->
+  <div id="rack-panel">
+    <div id="rack-header" onclick="togglePanel('rack-panel')">
+      <span>📋 Rack List (22)</span>
+      <span id="rack-toggle">▾</span>
+    </div>
+    <div id="rack-body">
+      <h4>Row A (ซ้าย) — 10 Racks</h4>
+      <div class="rack-item">DA0A</div>
+      <div class="rack-item">DA0</div>
+      <div class="rack-item rack-rac">RAC-328</div>
+      <div class="rack-item">DA2</div>
+      <div class="rack-item">DA3</div>
+      <div class="rack-item">DA4</div>
+      <div class="rack-item rack-rac">RAC-327</div>
+      <div class="rack-item">DA6</div>
+      <div class="rack-item">DA7</div>
+      <div class="rack-item">DA8</div>
+      <hr>
+      <h4>Row B (ขวา) — 12 Racks</h4>
+      <div class="rack-item">DB0C</div>
+      <div class="rack-item">DB0B</div>
+      <div class="rack-item rack-rac">RAC-329</div>
+      <div class="rack-item">DB0</div>
+      <div class="rack-item">DB1</div>
+      <div class="rack-item">DB2</div>
+      <div class="rack-item rack-rac">RAC-325</div>
+      <div class="rack-item">DB4</div>
+      <div class="rack-item">DB5</div>
+      <div class="rack-item">DB6</div>
+      <div class="rack-item rack-rac">RAC-326</div>
+      <div class="rack-item">DB8</div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ─── SCENE ───────────────────────────────────────────────────────────────────
+const container = document.getElementById('app');
+const W = container.clientWidth, H = container.clientHeight;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0f1a);
+scene.fog = new THREE.FogExp2(0x0a0f1a, 0.018);
+
+const camera = new THREE.PerspectiveCamera(52, W / H, 0.1, 120);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(W, H);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+
+// ─── LIGHTING ─────────────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0x223355, 1.1));
+
+const sun = new THREE.DirectionalLight(0xffffff, 0.75);
+sun.position.set(6, 18, 10);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.near = 0.5;
+sun.shadow.camera.far = 60;
+sun.shadow.camera.left = -14;
+sun.shadow.camera.right = 14;
+sun.shadow.camera.top = 14;
+sun.shadow.camera.bottom = -14;
+scene.add(sun);
+
+const fill = new THREE.DirectionalLight(0x4466aa, 0.35);
+fill.position.set(-8, 6, -6);
+scene.add(fill);
+
+const coldGlow = new THREE.PointLight(0x2288ff, 0.6, 12);
+coldGlow.position.set(0, 2.8, 0);
+scene.add(coldGlow);
+
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const RDX  = 1.0;   // rack depth  (X axis, front-to-back)
+const RWZ  = 0.6;   // rack width  (Z axis, along row)
+const RH   = 2.2;   // rack height
+const SP   = 0.65;  // spacing center-to-center along Z (Row B)
+const AW   = 1.2;   // cold aisle width (X)
+const FH   = 0.15;  // raised floor height
+
+const ROW_A = ['DA0A','DA0','RAC-328','DA2','DA3','DA4','RAC-327','DA6','DA7','DA8'];
+const ROW_B = ['DB0C','DB0B','RAC-329','DB0','DB1','DB2','RAC-325','DB4','DB5','DB6','RAC-326','DB8'];
+const RAC_SET = new Set(['RAC-328','RAC-327','RAC-329','RAC-325','RAC-326']);
+// Stretch Row A spacing so both rows span the exact same total length as Row B
+const SP_A = (ROW_B.length - 1) * SP / (ROW_A.length - 1); // 11*0.65/9 ≈ 0.7944
+
+// X positions (cold aisle centered at X=0)
+const AX = -(AW / 2 + RDX / 2);   // Row A center X = -1.1
+const BX =  (AW / 2 + RDX / 2);   // Row B center X = +1.1
+
+// Z: both rows share same start, longer row (B=12) sets extent
+const nMax = Math.max(ROW_A.length, ROW_B.length);  // 12
+const START_Z = -((nMax - 1) * SP / 2);             // -3.575
+
+// Containment geometry
+const C_LEN   = nMax * SP;                           // 7.8
+const C_SZ    = START_Z - SP / 2;                    // -3.9  (front Z)
+const C_EZ    = C_SZ + C_LEN;                        // +3.9  (back Z)
+const C_CZ    = 0;                                   // center Z
+
+// ─── MATERIALS ────────────────────────────────────────────────────────────────
+const MAT = {
+  rack:     new THREE.MeshPhongMaterial({ color:0x2e3f50, shininess:30 }),
+  rac:      new THREE.MeshPhongMaterial({ color:0x0f2e88, shininess:60 }),
+  rackEdge: new THREE.LineBasicMaterial({ color:0x5577aa }),
+  racEdge:  new THREE.LineBasicMaterial({ color:0x4477ff }),
+  panel:    new THREE.MeshPhongMaterial({ color:0x1a2535 }),
+  led:      new THREE.MeshPhongMaterial({ color:0x00ff88, emissive:0x003322 }),
+  glass:    new THREE.MeshPhongMaterial({ color:0x88ccff, transparent:true, opacity:0.14,
+              side:THREE.DoubleSide, shininess:300, specular:0xffffff }),
+  door:     new THREE.MeshPhongMaterial({ color:0x55aadd, transparent:true, opacity:0.38,
+              side:THREE.DoubleSide, shininess:200 }),
+  frame:    new THREE.MeshPhongMaterial({ color:0x99aabb, shininess:120 }),
+  floor:    new THREE.MeshPhongMaterial({ color:0x1e2230, shininess:60 }),
+  coldTile: new THREE.MeshPhongMaterial({ color:0x1a2e4a, shininess:90 }),
+  hotTile:  new THREE.MeshPhongMaterial({ color:0x201a20, shininess:50 }),
+  coldAir:  new THREE.MeshBasicMaterial({ color:0x22aaff, transparent:true, opacity:0.75 }),
+  hotAir:   new THREE.MeshBasicMaterial({ color:0xff4422, transparent:true, opacity:0.70 }),
+  wires:    new THREE.LineBasicMaterial({ color:0x334455, linewidth:1 }),
+};
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function edges(geo, mat) {
+  const e = new THREE.EdgesGeometry(geo);
+  return new THREE.LineSegments(e, mat);
+}
+
+function box(sx, sy, sz, mat, x, y, z) {
+  const geo = new THREE.BoxGeometry(sx, sy, sz);
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z);
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+
+// Rounded rect helper — works in all Chrome versions
+function rrect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y,     x + w, y + r,     r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x,     y + h, x,     y + h - r, r);
+  ctx.lineTo(x,     y + r);
+  ctx.arcTo(x,     y,     x + r, y,         r);
+  ctx.closePath();
+}
+
+// Canvas sprite label — wz controls sprite width to match rack width
+function makeLabel(text, isRAC, wz) {
+  const W = wz || RWZ;
+  const cw = 220, ch = 52;
+  const cv = document.createElement('canvas');
+  cv.width = cw; cv.height = ch;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = isRAC ? 'rgba(8,30,110,0.92)' : 'rgba(20,30,50,0.88)';
+  rrect(ctx, 2, 2, cw-4, ch-4, 6); ctx.fill();
+  ctx.strokeStyle = isRAC ? '#4466ff' : '#445566';
+  ctx.lineWidth = 2;
+  rrect(ctx, 2, 2, cw-4, ch-4, 6); ctx.stroke();
+  ctx.fillStyle = isRAC ? '#aabbff' : '#ccddee';
+  ctx.font = `bold ${isRAC ? 20 : 17}px Consolas,monospace`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, cw / 2, ch / 2);
+  const tex = new THREE.CanvasTexture(cv);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
+  sp.scale.set(W * 2.1, W * 0.5, 1);
+  return sp;
+}
+
+function makeBigLabel(text, color, bgAlpha) {
+  const cw = 300, ch = 58;
+  const cv = document.createElement('canvas');
+  cv.width = cw; cv.height = ch;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = `rgba(0,0,0,${bgAlpha||0})`;
+  ctx.fillRect(0, 0, cw, ch);
+  ctx.fillStyle = color;
+  ctx.font = 'bold 22px Arial';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, cw/2, ch/2);
+  const tex = new THREE.CanvasTexture(cv);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, depthTest:false, transparent:true }));
+  sp.scale.set(2.6, 0.5, 1);
+  return sp;
+}
+
+// Air arrow helper (cylinder + cone going UP)
+function airArrow(x, baseY, z, h, color) {
+  const mat = new THREE.MeshBasicMaterial({ color, transparent:true, opacity:0.78 });
+  const shaftH = h * 0.72;
+  const shaftR = 0.042;
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(shaftR, shaftR, shaftH, 10), mat);
+  shaft.position.set(x, baseY + shaftH / 2, z);
+  scene.add(shaft);
+  const head = new THREE.Mesh(new THREE.ConeGeometry(0.10, h * 0.28, 10), mat);
+  head.position.set(x, baseY + shaftH + (h * 0.28) / 2, z);
+  scene.add(head);
+}
+
+// ─── FLOOR ────────────────────────────────────────────────────────────────────
+function buildFloor() {
+  const fw = 12, fl = C_LEN + 5;
+  // Sub-floor structure
+  const sub = box(fw, 0.25, fl, new THREE.MeshPhongMaterial({ color:0x121520 }), 0, -0.125, C_CZ);
+  scene.add(sub);
+
+  // Tile grid
+  const ts = 0.6;
+  const nx = Math.ceil(fw / ts), nz = Math.ceil(fl / ts);
+  for (let i = 0; i < nx; i++) {
+    for (let j = 0; j < nz; j++) {
+      const tx = -fw/2 + (i + 0.5) * ts;
+      const tz = C_CZ - fl/2 + (j + 0.5) * ts;
+      const inCA = Math.abs(tx) < AW / 2 - 0.05;
+      const inHotA = !inCA && Math.abs(tx) > AW/2;
+      const tmat = inCA ?
+          new THREE.MeshPhongMaterial({ color:0x1a2e48, shininess:100 }) :
+          new THREE.MeshPhongMaterial({ color:0x1c1e28, shininess:40 });
+      const t = box(ts - 0.025, FH, ts - 0.025, tmat, tx, FH / 2, tz);
+      scene.add(t);
+    }
+  }
+}
+
+// ─── RACK ─────────────────────────────────────────────────────────────────────
+function buildRack(name, cx, cz, frontDir, wz, labelWz) {
+  // wz: rack body width in Z (defaults to RWZ)
+  // labelWz: label sprite width — pass to match another row's label size
+  const W = wz || RWZ;
+  const LW = labelWz || W;
+  const isRAC = RAC_SET.has(name);
+  const g = new THREE.Group();
+  const cy = FH + RH / 2;
+
+  // Main body
+  const bodyGeo = new THREE.BoxGeometry(RDX, RH, W);
+  const body = new THREE.Mesh(bodyGeo, isRAC ? MAT.rac : MAT.rack);
+  body.castShadow = true; body.receiveShadow = true;
+  g.add(body);
+  const el = edges(bodyGeo, isRAC ? MAT.racEdge : MAT.rackEdge);
+  body.add(el);
+
+  // Front panels (server units)
+  const rows = 7;
+  const panH = (RH - 0.3) / rows * 0.72;
+  for (let p = 0; p < rows; p++) {
+    const py = -RH/2 + 0.15 + (RH - 0.3) / rows * (p + 0.5);
+    const panGeo = new THREE.BoxGeometry(0.04, panH, W * 0.88);
+    const pan = new THREE.Mesh(panGeo, MAT.panel);
+    pan.position.set((RDX / 2 + 0.02) * frontDir, py, 0);
+    g.add(pan);
+    // small LED dot
+    if (p < 5) {
+      const ledGeo = new THREE.BoxGeometry(0.025, 0.04, 0.04);
+      const led = new THREE.Mesh(ledGeo, MAT.led);
+      led.position.set((RDX / 2 + 0.025) * frontDir, py + panH * 0.3, W * 0.38);
+      g.add(led);
+    }
+  }
+
+  // Side accent strip
+  const stripGeo = new THREE.BoxGeometry(0.04, RH * 0.85, 0.04);
+  const stripMat = new THREE.MeshPhongMaterial({
+    color: isRAC ? 0x2255ff : 0x3355aa, emissive: isRAC ? 0x0011aa : 0x001122
+  });
+  const strip = new THREE.Mesh(stripGeo, stripMat);
+  strip.position.set((RDX / 2 + 0.025) * frontDir, 0, -W / 2 + 0.03);
+  g.add(strip);
+
+  // Label above — scale to labelWz so both rows match
+  const lbl = makeLabel(name, isRAC, LW);
+  lbl.position.set(0, RH / 2 + 0.21, 0);
+  g.add(lbl);
+
+  g.position.set(cx, cy, cz);
+  scene.add(g);
+  return g;
+}
+
+// ─── CONTAINMENT ──────────────────────────────────────────────────────────────
+function buildContainment() {
+  const H = RH, L = C_LEN, W = AW;
+  const midY = FH + H / 2;
+
+  // — Glass side panels —
+  [-W/2, W/2].forEach(px => {
+    // Panel
+    const pGeo = new THREE.BoxGeometry(0.015, H, L);
+    const p = new THREE.Mesh(pGeo, MAT.glass);
+    p.position.set(px, FH + H/2, C_CZ);
+    scene.add(p);
+
+    // Vertical frame posts at ends
+    [C_SZ, C_EZ].forEach(pz => {
+      const post = box(0.06, H + 0.06, 0.06, MAT.frame, px, FH + H/2, pz);
+      scene.add(post);
+    });
+    // Horizontal top rail
+    const rail = box(0.04, 0.04, L, MAT.frame, px, FH + H + 0.02, C_CZ);
+    scene.add(rail);
+    // Horizontal bottom rail
+    const bot = box(0.04, 0.04, L, MAT.frame, px, FH - 0.01, C_CZ);
+    scene.add(bot);
+  });
+
+  // — Glass ceiling —
+  const ceilGeo = new THREE.BoxGeometry(W + 0.03, 0.018, L);
+  const ceil = new THREE.Mesh(ceilGeo, MAT.glass);
+  ceil.position.set(0, FH + H + 0.009, C_CZ);
+  scene.add(ceil);
+  // Top frame crossbars
+  for (let i = 0; i <= 4; i++) {
+    const cz2 = C_SZ + (C_LEN / 4) * i;
+    const bar = box(W + 0.06, 0.04, 0.04, MAT.frame, 0, FH + H + 0.025, cz2);
+    scene.add(bar);
+  }
+  // Top side rails
+  const tRail = box(W + 0.06, 0.04, 0.04, MAT.frame, 0, FH + H + 0.025, C_SZ);
+  scene.add(tRail);
+  const tRail2 = box(W + 0.06, 0.04, 0.04, MAT.frame, 0, FH + H + 0.025, C_EZ);
+  scene.add(tRail2);
+
+  // — Sliding Doors — (front: slides LEFT; back: slides RIGHT)
+  const dW  = W * 0.58;
+  const dH  = H - 0.04;
+  const dGeo = new THREE.BoxGeometry(dW, dH, 0.03);
+
+  // Front door (at C_SZ) — sliding left, gap on right
+  const fdoor = new THREE.Mesh(dGeo, MAT.door);
+  fdoor.position.set(-W/2 + dW/2 - 0.02, FH + dH/2 + 0.02, C_SZ - 0.01);
+  scene.add(fdoor);
+
+  // Front door frame (full-width header)
+  scene.add(box(W + 0.08, 0.07, 0.07, MAT.frame, 0, FH + H + 0.035, C_SZ));
+  scene.add(box(W + 0.08, 0.04, 0.04, MAT.frame, 0, FH - 0.01, C_SZ));
+  // Slide track above front door
+  scene.add(box(W + 0.06, 0.04, 0.04, MAT.frame, 0, FH + H + 0.06, C_SZ));
+
+  // Back door (at C_EZ) — sliding right
+  const bdoor = new THREE.Mesh(dGeo, MAT.door);
+  bdoor.position.set(W/2 - dW/2 + 0.02, FH + dH/2 + 0.02, C_EZ + 0.01);
+  scene.add(bdoor);
+  scene.add(box(W + 0.08, 0.07, 0.07, MAT.frame, 0, FH + H + 0.035, C_EZ));
+  scene.add(box(W + 0.08, 0.04, 0.04, MAT.frame, 0, FH - 0.01, C_EZ));
+  scene.add(box(W + 0.06, 0.04, 0.04, MAT.frame, 0, FH + H + 0.06, C_EZ));
+
+  // Door handle detail
+  function addHandle(dx, dz) {
+    const h = box(0.05, 0.25, 0.04, MAT.frame, dx, FH + H * 0.5, dz);
+    scene.add(h);
+  }
+  addHandle(0.12, C_SZ - 0.03);
+  addHandle(-0.12, C_EZ + 0.03);
+}
+
+// ─── AIR FLOW ARROWS ──────────────────────────────────────────────────────────
+
+// Cubic Bezier scalar interpolation
+function cubicBez(p0, p1, p2, p3, t) {
+  const u = 1 - t;
+  return u*u*u*p0 + 3*u*u*t*p1 + 3*u*t*t*p2 + t*t*t*p3;
+}
+
+// Horizontal C-curve tube arrow in XZ plane:
+// exits back of source rack (backX, Y, srcZ) outward to swingX,
+// sweeps along Z to dstZ, then curves back into RAC back face at (backX, Y, dstZ).
+function hotCurveArrow(backX, y, srcZ, swingX, dstZ) {
+  const COL = 0xff4422;
+  const mat = new THREE.MeshBasicMaterial({ color: COL, transparent: true, opacity: 0.80 });
+  const STEPS = 32;
+  const pts = [];
+  for (let s = 0; s <= STEPS; s++) {
+    const t = s / STEPS;
+    // Cubic bezier in X (outward then back), linear-ish in Z
+    const x = cubicBez(backX, swingX, swingX, backX, t);
+    const z = cubicBez(srcZ,  srcZ,   dstZ,   dstZ,  t);
+    pts.push(new THREE.Vector3(x, y, z));
+  }
+  const curve  = new THREE.CatmullRomCurve3(pts);
+  const tubeGeo = new THREE.TubeGeometry(curve, STEPS, 0.032, 8, false);
+  scene.add(new THREE.Mesh(tubeGeo, mat));
+
+  // Arrowhead: cone aligned to final tangent direction (into RAC)
+  const endPt  = pts[STEPS];
+  const prevPt = pts[STEPS - 2];
+  const dir    = new THREE.Vector3().subVectors(endPt, prevPt).normalize();
+  const cone   = new THREE.Mesh(new THREE.ConeGeometry(0.10, 0.24, 8), mat);
+  cone.position.copy(endPt);
+  cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  scene.add(cone);
+}
+
+// Cold air C-curve: exits RAC front → swings into cold aisle → enters DA/DB front
+// faceX   = X of both RAC front and DA/DB front (same plane)
+// swingX  = apex of curve inside cold aisle
+// racZ    = source (RAC front Z)
+// dstZ    = destination (DA/DB front Z)
+function coldCurveArrow(faceX, y, racZ, swingX, dstZ) {
+  const mat = new THREE.MeshBasicMaterial({ color: 0x22aaff, transparent: true, opacity: 0.82 });
+  const STEPS = 32;
+  const pts = [];
+  for (let s = 0; s <= STEPS; s++) {
+    const t = s / STEPS;
+    // Bezier: X swings out into cold aisle then back; Z sweeps from racZ to dstZ
+    const x = cubicBez(faceX, swingX, swingX, faceX, t);
+    const z = cubicBez(racZ,  racZ,   dstZ,   dstZ,  t);
+    pts.push(new THREE.Vector3(x, y, z));
+  }
+  const curve   = new THREE.CatmullRomCurve3(pts);
+  const tubeGeo = new THREE.TubeGeometry(curve, STEPS, 0.032, 8, false);
+  scene.add(new THREE.Mesh(tubeGeo, mat));
+
+  // Arrowhead at destination, aligned with final tangent (into DA/DB rack)
+  const endPt  = pts[STEPS];
+  const prevPt = pts[STEPS - 2];
+  const dir    = new THREE.Vector3().subVectors(endPt, prevPt).normalize();
+  const cone   = new THREE.Mesh(new THREE.ConeGeometry(0.10, 0.24, 8), mat);
+  cone.position.copy(endPt);
+  cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  scene.add(cone);
+}
+
+function buildAirflow() {
+  const arrowY = FH + RH * 0.52;   // mid-height arrows
+  const hotSwing = 0.90;           // bulge into hot aisle
+
+  // ── Shared RAC index/Z tables ──
+  const racA = [
+    { idx: 2, z: START_Z + 2 * SP_A },   // RAC-328
+    { idx: 6, z: START_Z + 6 * SP_A },   // RAC-327
+  ];
+  const racB = [
+    { idx:  2, z: START_Z +  2 * SP },   // RAC-329
+    { idx:  6, z: START_Z +  6 * SP },   // RAC-325
+    { idx: 10, z: START_Z + 10 * SP },   // RAC-326
+  ];
+
+  function nearestRac(racList, idx) {
+    return racList.reduce((best, r) =>
+      Math.abs(r.idx - idx) < Math.abs(best.idx - idx) ? r : best
+    , racList[0]);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // HOT AIR (red): DA/DB back → curves through hot aisle → enters nearest RAC back
+  // ─────────────────────────────────────────────────────────────────────────────
+  const backA  = AX - RDX / 2;           // -1.6  (Row A back face)
+  const swingA_hot = backA - hotSwing;   // -2.5
+
+  ROW_A.forEach((name, i) => {
+    if (RAC_SET.has(name)) return;
+    const srcZ = START_Z + i * SP_A;
+    const rac  = nearestRac(racA, i);
+    hotCurveArrow(backA, arrowY, srcZ, swingA_hot, rac.z);
+  });
+
+  const backB  = BX + RDX / 2;           // +1.6  (Row B back face)
+  const swingB_hot = backB + hotSwing;   // +2.5
+
+  ROW_B.forEach((name, i) => {
+    if (RAC_SET.has(name)) return;
+    const srcZ = START_Z + i * SP;
+    const rac  = nearestRac(racB, i);
+    hotCurveArrow(backB, arrowY, srcZ, swingB_hot, rac.z);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // COLD AIR (blue): RAC front → curves through cold aisle → enters nearest DA/DB front
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Front face X (same plane for all racks in same row)
+  const frontA     = AX + RDX / 2;       // -0.6  (Row A front, faces cold aisle)
+  const swingA_cold = 0;                  // apex at cold aisle center X=0
+
+  const frontB     = BX - RDX / 2;       // +0.6  (Row B front, faces cold aisle)
+  const swingB_cold = 0;                  // apex at cold aisle center X=0
+
+  // For each non-RAC DA rack: arrow FROM nearest RAC-A front → TO this DA rack front
+  ROW_A.forEach((name, i) => {
+    if (RAC_SET.has(name)) return;        // DA racks are the destination
+    const dstZ = START_Z + i * SP_A;
+    const rac  = nearestRac(racA, i);
+    coldCurveArrow(frontA, arrowY, rac.z, swingA_cold, dstZ);
+  });
+
+  // For each non-RAC DB rack: arrow FROM nearest RAC-B front → TO this DB rack front
+  ROW_B.forEach((name, i) => {
+    if (RAC_SET.has(name)) return;        // DB racks are the destination
+    const dstZ = START_Z + i * SP;
+    const rac  = nearestRac(racB, i);
+    coldCurveArrow(frontB, arrowY, rac.z, swingB_cold, dstZ);
+  });
+}
+
+// ─── AISLE LABELS ─────────────────────────────────────────────────────────────
+function buildLabels() {
+  const labelY = FH + RH + 0.65;
+
+  const coldLbl = makeBigLabel('❄  COLD AISLE', '#44ccff', 0);
+  coldLbl.position.set(0, labelY, C_CZ);
+  scene.add(coldLbl);
+
+  const hotLblL = makeBigLabel('🔥 HOT AISLE', '#ff7755', 0);
+  hotLblL.position.set(AX - RDX / 2 - 0.9, labelY, C_CZ);
+  scene.add(hotLblL);
+
+  const hotLblR = makeBigLabel('🔥 HOT AISLE', '#ff7755', 0);
+  hotLblR.position.set(BX + RDX / 2 + 0.9, labelY, C_CZ);
+  scene.add(hotLblR);
+
+  // Row labels
+  const rowALbl = makeBigLabel('Row DA', '#88aaff', 0);
+  rowALbl.position.set(AX, labelY + 0.55, C_CZ);
+  scene.add(rowALbl);
+
+  const rowBLbl = makeBigLabel('Row DB', '#88aaff', 0);
+  rowBLbl.position.set(BX, labelY + 0.55, C_CZ);
+  scene.add(rowBLbl);
+}
+
+// ─── BUILD SCENE ──────────────────────────────────────────────────────────────
+buildFloor();
+
+// Row A — same gap as Row B (SP - RWZ = 0.05), rack width = SP_A - 0.05
+const RWZ_A = SP_A - (SP - RWZ);   // ≈ 0.744 → same visual gap as DB side
+ROW_A.forEach((name, i) => {
+  buildRack(name, AX, START_Z + i * SP_A, 1, RWZ_A);
+});
+
+// Row B — rack body keeps RWZ width, but label uses RWZ_A to match Row A font size
+ROW_B.forEach((name, i) => {
+  buildRack(name, BX, START_Z + i * SP, -1, RWZ, RWZ_A);
+});
+
+buildContainment();
+buildAirflow();
+buildLabels();
+
+// ─── CAMERA ORBIT CONTROL ─────────────────────────────────────────────────────
+let theta = 0.45, phi = 0.92, radius = 17;
+const target = new THREE.Vector3(0, RH / 2 + FH, C_CZ);
+let isLeft = false, isRight = false;
+let prev = { x: 0, y: 0 };
+
+function updateCam() {
+  camera.position.set(
+    target.x + radius * Math.sin(phi) * Math.sin(theta),
+    target.y + radius * Math.cos(phi),
+    target.z + radius * Math.sin(phi) * Math.cos(theta)
+  );
+  camera.lookAt(target);
+}
+updateCam();
+
+const cv = renderer.domElement;
+cv.addEventListener('mousedown', e => {
+  if (e.button === 0) isLeft = true;
+  if (e.button === 2) isRight = true;
+  prev = { x: e.clientX, y: e.clientY };
+});
+cv.addEventListener('mousemove', e => {
+  const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+  if (isLeft) {
+    theta -= dx * 0.007;
+    phi = Math.max(0.08, Math.min(Math.PI * 0.46, phi + dy * 0.007));
+  }
+  if (isRight) {
+    const right = new THREE.Vector3();
+    right.crossVectors(
+      new THREE.Vector3().subVectors(camera.position, target).normalize(),
+      new THREE.Vector3(0,1,0)
+    ).normalize();
+    target.addScaledVector(right, dx * 0.018);
+    target.y -= dy * 0.018;
+  }
+  prev = { x: e.clientX, y: e.clientY };
+  updateCam();
+});
+cv.addEventListener('mouseup', () => { isLeft = false; isRight = false; });
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('wheel', e => {
+  radius = Math.max(3, Math.min(55, radius + e.deltaY * 0.02));
+  updateCam();
+}, { passive: true });
+
+// ── Touch controls: 1-finger rotate, 2-finger pinch-zoom + pan ──
+let touch1 = null, touch2 = null, lastPinchDist = null;
+
+function getTouchMid(a, b) {
+  return { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 };
+}
+function getTouchDist(a, b) {
+  const dx = a.clientX - b.clientX, dy = a.clientY - b.clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+cv.addEventListener('touchstart', e => {
+  e.preventDefault();
+  touch1 = e.touches[0];
+  touch2 = e.touches.length >= 2 ? e.touches[1] : null;
+  if (touch2) lastPinchDist = getTouchDist(touch1, touch2);
+}, { passive: false });
+
+cv.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (!touch1) return;
+
+  if (e.touches.length === 1) {
+    // Single finger → rotate
+    const t = e.touches[0];
+    const dx = t.clientX - touch1.clientX, dy = t.clientY - touch1.clientY;
+    theta -= dx * 0.009;
+    phi = Math.max(0.08, Math.min(Math.PI * 0.46, phi + dy * 0.009));
+    touch1 = t;
+    updateCam();
+
+  } else if (e.touches.length >= 2) {
+    // Two fingers → pinch zoom + pan
+    const a = e.touches[0], b = e.touches[1];
+    const dist = getTouchDist(a, b);
+    const mid  = getTouchMid(a, b);
+
+    // Pinch zoom
+    if (lastPinchDist !== null) {
+      const delta = lastPinchDist - dist;
+      radius = Math.max(3, Math.min(55, radius + delta * 0.04));
+    }
+    lastPinchDist = dist;
+
+    // Two-finger pan (compare midpoint movement)
+    if (touch2) {
+      const prevMid = getTouchMid(touch1, touch2);
+      const dmx = mid.x - prevMid.x, dmy = mid.y - prevMid.y;
+      const right = new THREE.Vector3();
+      right.crossVectors(
+        new THREE.Vector3().subVectors(camera.position, target).normalize(),
+        new THREE.Vector3(0, 1, 0)
+      ).normalize();
+      target.addScaledVector(right, -dmx * 0.015);
+      target.y += dmy * 0.015;
+    }
+
+    touch1 = e.touches[0];
+    touch2 = e.touches[1];
+    updateCam();
+  }
+}, { passive: false });
+
+cv.addEventListener('touchend', e => {
+  touch1 = e.touches[0] || null;
+  touch2 = e.touches[1] || null;
+  if (!touch2) lastPinchDist = null;
+}, { passive: false });
+
+// ─── ANIMATION ────────────────────────────────────────────────────────────────
+let t = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  t += 0.016;
+  MAT.coldAir.opacity = 0.60 + 0.15 * Math.sin(t * 1.8);
+  MAT.hotAir.opacity  = 0.55 + 0.15 * Math.sin(t * 1.8 + Math.PI);
+  coldGlow.intensity  = 0.50 + 0.10 * Math.sin(t * 2.2);
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  const nw = container.clientWidth, nh = container.clientHeight;
+  camera.aspect = nw / nh;
+  camera.updateProjectionMatrix();
+  renderer.setSize(nw, nh);
+});
+
+// ── Panel toggle (collapse/expand) ──
+function togglePanel(id) {
+  const el = document.getElementById(id);
+  el.classList.toggle('collapsed');
+}
+
+// Auto-collapse panels on small screens
+(function initPanels() {
+  if (window.innerWidth <= 768) {
+    document.getElementById('rack-panel').classList.add('collapsed');
+  }
+  if (window.innerWidth <= 480) {
+    document.getElementById('legend').classList.add('collapsed');
+  }
+})();
+</script>
+</body>
+</html>                            
