@@ -345,23 +345,71 @@ function airArrow(x, baseY, z, h, color) {
 // ─── FLOOR ────────────────────────────────────────────────────────────────────
 function buildFloor() {
   const fw = 12, fl = C_LEN + 5;
-  // Sub-floor structure
-  const sub = box(fw, 0.25, fl, new THREE.MeshPhongMaterial({ color:0x121520 }), 0, -0.125, C_CZ);
-  scene.add(sub);
+  const ts = 0.60;   // tile size
+  const UH = 0.55;   // underfloor void height
 
-  // Tile grid
-  const ts = 0.6;
-  const nx = Math.ceil(fw / ts), nz = Math.ceil(fl / ts);
+  // ── Bottom of void ──
+  scene.add(box(fw + 2, 0.06, fl + 2,
+    new THREE.MeshPhongMaterial({ color: 0x06080e }), 0, -UH - 0.03, C_CZ));
+
+  // ── Pedestal grid (support legs) under entire floor ──
+  const pedMat  = new THREE.MeshPhongMaterial({ color: 0x8899aa, shininess: 160 });
+  const platMat = new THREE.MeshPhongMaterial({ color: 0xaabbcc, shininess: 200 });
+  const pedH = UH - 0.05, pedW = 0.042;
+  const pedGrid = 0.60;
+  const pxCount = Math.round(fw / pedGrid);
+  const pzCount = Math.round(fl / pedGrid);
+
+  for (let pi = 0; pi <= pxCount; pi++) {
+    for (let pj = 0; pj <= pzCount; pj++) {
+      const px = -fw/2 + pi * pedGrid;
+      const pz = C_CZ - fl/2 + pj * pedGrid;
+      scene.add(box(pedW, pedH, pedW, pedMat, px, -pedH/2 - 0.02, pz));
+      scene.add(box(0.13, 0.022, 0.13, platMat, px, -UH + 0.022, pz));
+      scene.add(box(0.13, 0.022, 0.13, platMat, px, -0.022, pz));
+    }
+  }
+
+  // ── Stringers (cross beams connecting pedestal heads) ──
+  const strMat = new THREE.MeshPhongMaterial({ color: 0x7788aa, shininess: 130 });
+  const strY = -0.048, strH = 0.032, strW = 0.016;
+  for (let pi = 0; pi <= pxCount; pi++) {
+    const sx = -fw/2 + pi * pedGrid;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(strW, strH, fl), strMat);
+    m.position.set(sx, strY, C_CZ); scene.add(m);
+  }
+  for (let pj = 0; pj <= pzCount; pj++) {
+    const sz = C_CZ - fl/2 + pj * pedGrid;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(fw, strH, strW), strMat);
+    m.position.set(0, strY, sz); scene.add(m);
+  }
+
+  // ── Underfloor dim light ──
+  const uLight = new THREE.PointLight(0x4466aa, 0.7, 10);
+  uLight.position.set(0, -UH * 0.5, C_CZ);
+  scene.add(uLight);
+
+  // ── Raised floor tiles — semi-transparent, all covering the full floor ──
+  // Cold aisle: slightly blue tint; hot aisle: neutral gray
+  // depthWrite:false lets the underfloor show through cleanly
+  const tileMat = {
+    ca:  new THREE.MeshPhongMaterial({
+           color: 0x1e3550, shininess: 120,
+           transparent: true, opacity: 0.42, depthWrite: false }),
+    std: new THREE.MeshPhongMaterial({
+           color: 0x1e2230, shininess: 60,
+           transparent: true, opacity: 0.40, depthWrite: false }),
+  };
+
+  const nx = Math.ceil(fw / ts), nz2 = Math.ceil(fl / ts);
   for (let i = 0; i < nx; i++) {
-    for (let j = 0; j < nz; j++) {
+    for (let j = 0; j < nz2; j++) {
       const tx = -fw/2 + (i + 0.5) * ts;
       const tz = C_CZ - fl/2 + (j + 0.5) * ts;
       const inCA = Math.abs(tx) < AW / 2 - 0.05;
-      const inHotA = !inCA && Math.abs(tx) > AW/2;
-      const tmat = inCA ?
-          new THREE.MeshPhongMaterial({ color:0x1a2e48, shininess:100 }) :
-          new THREE.MeshPhongMaterial({ color:0x1c1e28, shininess:40 });
-      const t = box(ts - 0.025, FH, ts - 0.025, tmat, tx, FH / 2, tz);
+      const t = box(ts - 0.028, FH, ts - 0.028,
+        inCA ? tileMat.ca : tileMat.std, tx, FH / 2, tz);
+      t.renderOrder = 1;   // render transparent tiles after opaque objects
       scene.add(t);
     }
   }
@@ -465,37 +513,82 @@ function buildContainment() {
   const tRail2 = box(W + 0.06, 0.04, 0.04, MAT.frame, 0, FH + H + 0.025, C_EZ);
   scene.add(tRail2);
 
-  // — Sliding Doors — (front: slides LEFT; back: slides RIGHT)
-  const dW  = W * 0.58;
-  const dH  = H - 0.04;
-  const dGeo = new THREE.BoxGeometry(dW, dH, 0.03);
+  // — Bi-parting Transparent Sliding Doors —
+  // Two glass panels sliding left ↔ right, meeting at center when closed
+  const mBlack  = new THREE.MeshPhongMaterial({ color: 0x0e1014, shininess: 90 });
+  const mGlass  = new THREE.MeshPhongMaterial({
+    color: 0xaaccee, transparent: true, opacity: 0.15,
+    side: THREE.DoubleSide, shininess: 500, specular: 0xffffff, depthWrite: false
+  });
+  const mChrome = new THREE.MeshPhongMaterial({ color: 0xccddee, shininess: 300, specular: 0xffffff });
 
-  // Front door (at C_SZ) — sliding left, gap on right
-  const fdoor = new THREE.Mesh(dGeo, MAT.door);
-  fdoor.position.set(-W/2 + dW/2 - 0.02, FH + dH/2 + 0.02, C_SZ - 0.01);
-  scene.add(fdoor);
+  function buildBipartingDoor(dz, dir) {
+    const dH    = H;
+    const pW    = W / 2;          // each panel = half width (0.6m)
+    const ft    = 0.026;          // frame thickness
+    const dp    = 0.030;          // panel depth
+    const railH = 0.048;
+    const railD = W + 0.16;
+    const pz    = dz + dir * (dp / 2 + 0.002);
+    const cy    = FH + dH / 2;
 
-  // Front door frame (full-width header)
-  scene.add(box(W + 0.08, 0.07, 0.07, MAT.frame, 0, FH + H + 0.035, C_SZ));
-  scene.add(box(W + 0.08, 0.04, 0.04, MAT.frame, 0, FH - 0.01, C_SZ));
-  // Slide track above front door
-  scene.add(box(W + 0.06, 0.04, 0.04, MAT.frame, 0, FH + H + 0.06, C_SZ));
+    // ── Top header rail ──
+    scene.add(box(railD, railH,        0.075, mBlack, 0, FH + dH + railH / 2, dz));
+    // Twin tracks grooves on top rail
+    [-W * 0.18, W * 0.18].forEach(gx => {
+      scene.add(box(0.010, railH * 0.55, 0.08,
+        new THREE.MeshPhongMaterial({ color: 0x070809 }), gx, FH + dH + railH * 0.45, dz));
+    });
 
-  // Back door (at C_EZ) — sliding right
-  const bdoor = new THREE.Mesh(dGeo, MAT.door);
-  bdoor.position.set(W/2 - dW/2 + 0.02, FH + dH/2 + 0.02, C_EZ + 0.01);
-  scene.add(bdoor);
-  scene.add(box(W + 0.08, 0.07, 0.07, MAT.frame, 0, FH + H + 0.035, C_EZ));
-  scene.add(box(W + 0.08, 0.04, 0.04, MAT.frame, 0, FH - 0.01, C_EZ));
-  scene.add(box(W + 0.06, 0.04, 0.04, MAT.frame, 0, FH + H + 0.06, C_EZ));
+    // ── Bottom floor track ──
+    scene.add(box(railD, 0.018, 0.060, mBlack, 0, FH - 0.009, dz));
+    // Twin grooves on bottom track
+    [-W * 0.18, W * 0.18].forEach(gx => {
+      scene.add(box(0.010, 0.020, 0.065,
+        new THREE.MeshPhongMaterial({ color: 0x070809 }), gx, FH - 0.010, dz));
+    });
 
-  // Door handle detail
-  function addHandle(dx, dz) {
-    const h = box(0.05, 0.25, 0.04, MAT.frame, dx, FH + H * 0.5, dz);
-    scene.add(h);
+    // ── Left & Right door panels (frame-only + glass, NO solid backing) ──
+    [
+      { side: -1, cx: -pW / 2 },   // Left panel
+      { side:  1, cx:  pW / 2 },   // Right panel
+    ].forEach(({ side, cx }) => {
+
+      // ── Glass fill (full panel area, very transparent) ──
+      const glassMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(pW - ft * 2, dH - ft * 2, dp * 0.5), mGlass);
+      glassMesh.position.set(cx, cy, pz);
+      glassMesh.renderOrder = 3;
+      scene.add(glassMesh);
+
+      // ── Black frame bars only (4 edges — no solid back) ──
+      // Outer vertical bar
+      scene.add(box(ft, dH, dp, mBlack,
+        cx + side * (pW / 2 - ft / 2), cy, pz));
+      // Inner (center) vertical bar
+      scene.add(box(ft, dH, dp, mBlack,
+        cx - side * (pW / 2 - ft / 2), cy, pz));
+      // Top bar
+      scene.add(box(pW, ft, dp, mBlack, cx, FH + dH - ft / 2, pz));
+      // Bottom bar
+      scene.add(box(pW, ft, dp, mBlack, cx, FH + ft / 2,      pz));
+
+      // ── Chrome handle on inner edge ──
+      const hx  = cx - side * (ft * 0.5 + 0.020);
+      const hpz = pz + dir * (dp * 0.8);
+      scene.add(box(0.013, 0.28, 0.013, mChrome, hx, cy, hpz));
+      scene.add(box(0.013, 0.013, 0.050, mChrome, hx, cy + 0.13, hpz + dir * 0.025));
+      scene.add(box(0.013, 0.013, 0.050, mChrome, hx, cy - 0.13, hpz + dir * 0.025));
+    });
+
+    // ── Side jambs (door posts left & right) ──
+    const jH = dH + railH * 2 + 0.02;
+    scene.add(box(0.048, jH, 0.080, mBlack, -W/2 - 0.024, FH + dH/2, dz));
+    scene.add(box(0.048, jH, 0.080, mBlack,  W/2 + 0.024, FH + dH/2, dz));
   }
-  addHandle(0.12, C_SZ - 0.03);
-  addHandle(-0.12, C_EZ + 0.03);
+
+  buildBipartingDoor(C_SZ,  1);   // front
+  buildBipartingDoor(C_EZ, -1);   // back
 }
 
 // ─── AIR FLOW ARROWS ──────────────────────────────────────────────────────────
