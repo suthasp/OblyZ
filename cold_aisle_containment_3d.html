@@ -222,8 +222,6 @@ const FH   = 0.15;  // raised floor height
 const ROW_A = ['DA0A','DA0','RAC-328','DA2','DA3','DA4','RAC-327','DA6','DA7','DA8'];
 const ROW_B = ['DB0C','DB0B','RAC-329','DB0','DB1','DB2','RAC-325','DB4','DB5','DB6','RAC-326','DB8'];
 const RAC_SET = new Set(['RAC-328','RAC-327','RAC-329','RAC-325','RAC-326']);
-// Stretch Row A spacing so both rows span the exact same total length as Row B
-const SP_A = (ROW_B.length - 1) * SP / (ROW_A.length - 1); // 11*0.65/9 ≈ 0.7944
 
 // X positions (cold aisle centered at X=0)
 const AX = -(AW / 2 + RDX / 2);   // Row A center X = -1.1
@@ -232,6 +230,9 @@ const BX =  (AW / 2 + RDX / 2);   // Row B center X = +1.1
 // Z: both rows share same start, longer row (B=12) sets extent
 const nMax = Math.max(ROW_A.length, ROW_B.length);  // 12
 const START_Z = -((nMax - 1) * SP / 2);             // -3.575
+
+const SP_A    = SP;                  // Row A uses same spacing as Row B
+const START_ZA = START_Z + 2 * SP;  // DA0A starts at RAC-329 level (Row B index 2)
 
 // Containment geometry
 const C_LEN   = nMax * SP;                           // 7.8
@@ -664,8 +665,8 @@ function buildAirflow() {
 
   // ── Shared RAC index/Z tables ──
   const racA = [
-    { idx: 2, z: START_Z + 2 * SP_A },   // RAC-328
-    { idx: 6, z: START_Z + 6 * SP_A },   // RAC-327
+    { idx: 2, z: START_ZA + 2 * SP },   // RAC-328 (DA0A=idx0, so RAC-328 at idx2 → START_ZA+2*SP)
+    { idx: 6, z: START_ZA + 6 * SP },   // RAC-327
   ];
   const racB = [
     { idx:  2, z: START_Z +  2 * SP },   // RAC-329
@@ -687,7 +688,7 @@ function buildAirflow() {
 
   ROW_A.forEach((name, i) => {
     if (RAC_SET.has(name)) return;
-    const srcZ = START_Z + i * SP_A;
+    const srcZ = START_ZA + i * SP;
     const rac  = nearestRac(racA, i);
     hotCurveArrow(backA, arrowY, srcZ, swingA_hot, rac.z);
   });
@@ -715,7 +716,7 @@ function buildAirflow() {
   // For each non-RAC DA rack: arrow FROM nearest RAC-A front → TO this DA rack front
   ROW_A.forEach((name, i) => {
     if (RAC_SET.has(name)) return;        // DA racks are the destination
-    const dstZ = START_Z + i * SP_A;
+    const dstZ = START_ZA + i * SP;
     const rac  = nearestRac(racA, i);
     coldCurveArrow(frontA, arrowY, rac.z, swingA_cold, dstZ);
   });
@@ -758,16 +759,17 @@ function buildLabels() {
 // ─── BUILD SCENE ──────────────────────────────────────────────────────────────
 buildFloor();
 
-// Row A — same gap as Row B (SP - RWZ = 0.05), rack width = SP_A - 0.05
-const RWZ_A = SP_A - (SP - RWZ);   // ≈ 0.744 → same visual gap as DB side
+// Row A — same width & spacing as Row B, starts at index-2 offset (START_ZA)
+const RWZ_A = RWZ;   // same rack width as Row B
 ROW_A.forEach((name, i) => {
-  buildRack(name, AX, START_Z + i * SP_A, 1, RWZ_A);
+  buildRack(name, AX, START_ZA + i * SP, 1, RWZ_A);
 });
 
-// Row B — rack body keeps RWZ width, but label uses RWZ_A to match Row A font size
+// Row B — standard spacing from START_Z
 ROW_B.forEach((name, i) => {
   buildRack(name, BX, START_Z + i * SP, -1, RWZ, RWZ_A);
 });
+
 
 buildContainment();
 buildAirflow();
