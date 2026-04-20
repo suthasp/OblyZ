@@ -110,7 +110,14 @@
     }
     #rack-tooltip .tt-rack {
       font-size:13px; font-weight:700; color:#55aaff;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
       border-bottom:1px solid #1e3a6a; padding-bottom:5px; margin-bottom:6px;
+    }
+    #rack-tooltip .tt-kw {
+      background:linear-gradient(135deg,#ff6b35,#ff4500);
+      color:#fff; font-size:11px; font-weight:700;
+      padding:2px 7px; border-radius:20px; white-space:nowrap;
+      box-shadow:0 0 8px rgba(255,100,30,0.5);
     }
     #rack-tooltip .tt-server {
       color:#a8ccee; font-size:11px;
@@ -234,23 +241,23 @@ scene.add(coldGlow);
 
 // ─── RACK → SERVER MAPPING ───────────────────────────────────────────────────
 const SERVER_MAP = {
-  'DA0A': ['TUC-RST50DA0A (ZTE)'],
-  'DA0':  ['CORE-NFVI', 'RST-EXP-POD22-RACK4', 'TH-RST-EXP22-RACK4 (NOKIA)'],
-  'DA2':  ['CORE-NFVI', 'RST-EXP-POD11-RACK5', 'A0211EXPRACK1105 (NOKIA)'],
-  'DA3':  ['CORE-NFVI', 'RST-EXP-POD11-RACK4', 'A0211EXPRACK1104 (NOKIA)'],
-  'DA4':  ['CORE-NFVI', 'RST-EXP-POD11-RACK3', 'A0211EXPRACK1103 (NOKIA)'],
-  'DA6':  ['CORE-NFVI', 'RST-EXP-POD11-RACK2', 'A0211EXPRACK1102 (NOKIA)'],
-  'DA7':  ['CORE-NFVI', 'RST-NEP-POD21-RACK1', 'TH-RST-NEP21-RACK1 (NOKIA)'],
-  'DA8':  ['CORE-NFVI', 'RST-NEP-POD11-RACK3', 'A0211NEPRACK1103 (NOKIA)'],
-  'DB0C': ['TUC-RST50S01ZTRACDB0C (ZTE)'],
-  'DB0B': ['TUC-RST50S03ZTRACDB0B (ZTE)'],
-  'DB0':  ['Core/NFVI', 'RST-EXP-POD15-RACK1', 'A0211EXPRACK1501 (NOKIA)'],
-  'DB1':  ['Core/NFVI', 'RST-EXP-POD15-RACK2', 'A0211EXPRACK1502 (NOKIA)'],
-  'DB2':  ['Core/NFVI', 'RST-EXP-POD15-RACK3', 'A0211EXPRACK1503 (NOKIA)'],
-  'DB4':  ['Core/NFVI', 'RST-EXP-POD15-RACK4', 'A0211EXPRACK1504 (NOKIA)'],
-  'DB5':  ['Core/NFVI', 'RST-EXP-POD15-RACK5', 'A0211EXPRACK1505 (NOKIA)'],
-  'DB6':  ['Core/NFVI', 'RST-NEP-POD11-RACK1', 'A0211NEPRACK1101 (NOKIA)'],
-  'DB8':  ['Core/NFVI', 'RST-NEP-POD11-RACK2', 'A0211NEPRACK1202 (NOKIA)'],
+  'DA0A': { servers: ['TUC-RST50DA0A (ZTE)'],                                                       kw: 9.22 },
+  'DA0':  { servers: ['CORE-NFVI', 'RST-EXP-POD22-RACK4', 'TH-RST-EXP22-RACK4 (NOKIA)'],          kw: 7.87 },
+  'DA2':  { servers: ['CORE-NFVI', 'RST-EXP-POD11-RACK5', 'A0211EXPRACK1105 (NOKIA)'],             kw: 9.60 },
+  'DA3':  { servers: ['CORE-NFVI', 'RST-EXP-POD11-RACK4', 'A0211EXPRACK1104 (NOKIA)'],             kw: 9.25 },
+  'DA4':  { servers: ['CORE-NFVI', 'RST-EXP-POD11-RACK3', 'A0211EXPRACK1103 (NOKIA)'],             kw: 9.20 },
+  'DA6':  { servers: ['CORE-NFVI', 'RST-EXP-POD11-RACK2', 'A0211EXPRACK1102 (NOKIA)'],             kw: 8.56 },
+  'DA7':  { servers: ['CORE-NFVI', 'RST-NEP-POD21-RACK1', 'TH-RST-NEP21-RACK1 (NOKIA)'],          kw: 6.47 },
+  'DA8':  { servers: ['CORE-NFVI', 'RST-NEP-POD11-RACK3', 'A0211NEPRACK1103 (NOKIA)'],             kw: 7.67 },
+  'DB0C': { servers: ['TUC-RST50S01ZTRACDB0C (ZTE)'],                                              kw: 7.81 },
+  'DB0B': { servers: ['TUC-RST50S03ZTRACDB0B (ZTE)'],                                              kw: 9.33 },
+  'DB0':  { servers: ['Core/NFVI', 'RST-EXP-POD15-RACK1', 'A0211EXPRACK1501 (NOKIA)'],             kw: 8.94 },
+  'DB1':  { servers: ['Core/NFVI', 'RST-EXP-POD15-RACK2', 'A0211EXPRACK1502 (NOKIA)'],             kw: 8.15 },
+  'DB2':  { servers: ['Core/NFVI', 'RST-EXP-POD15-RACK3', 'A0211EXPRACK1503 (NOKIA)'],             kw: 8.23 },
+  'DB4':  { servers: ['Core/NFVI', 'RST-EXP-POD15-RACK4', 'A0211EXPRACK1504 (NOKIA)'],             kw: 8.17 },
+  'DB5':  { servers: ['Core/NFVI', 'RST-EXP-POD15-RACK5', 'A0211EXPRACK1505 (NOKIA)'],             kw: 7.75 },
+  'DB6':  { servers: ['Core/NFVI', 'RST-NEP-POD11-RACK1', 'A0211NEPRACK1101 (NOKIA)'],             kw: 7.32 },
+  'DB8':  { servers: ['Core/NFVI', 'RST-NEP-POD11-RACK2', 'A0211NEPRACK1202 (NOKIA)'],             kw: 7.48 },
 };
 
 const rackMeshes = [];  // filled by buildRack()
@@ -851,8 +858,11 @@ const ttEl = document.getElementById('rack-tooltip');
 let ttVisible = false;
 
 function showTooltip(name, x, y) {
-  const servers = SERVER_MAP[name];
-  let html = `<div class="tt-rack">🖥 ${name}</div>`;
+  const info = SERVER_MAP[name];
+  const servers = info ? info.servers : null;
+  const kw = info ? info.kw : null;
+  const kwBadge = kw != null ? `<span class="tt-kw">⚡ ${kw.toFixed(2)} kW</span>` : '';
+  let html = `<div class="tt-rack"><span>🖥 ${name}</span>${kwBadge}</div>`;
   if (servers && servers.length) {
     html += `<div class="tt-server">`;
     servers.forEach(s => { html += `<span>${s}</span>`; });
