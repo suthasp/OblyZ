@@ -98,9 +98,30 @@
       border-radius:8px; padding:6px 10px; color:#8899bb;
       font-size:clamp(9px,1.8vw,11px); line-height:1.7;
     }
+
+    /* ── RACK TOOLTIP ── */
+    #rack-tooltip {
+      position:fixed; z-index:100; pointer-events:none;
+      background:rgba(8,16,32,0.96); border:1px solid #2255aa;
+      border-radius:10px; padding:10px 14px;
+      color:#cce4ff; font-size:12px; line-height:1.6;
+      max-width:240px; display:none;
+      box-shadow:0 4px 20px rgba(0,80,200,0.35);
+    }
+    #rack-tooltip .tt-rack {
+      font-size:13px; font-weight:700; color:#55aaff;
+      border-bottom:1px solid #1e3a6a; padding-bottom:5px; margin-bottom:6px;
+    }
+    #rack-tooltip .tt-server {
+      color:#a8ccee; font-size:11px;
+    }
+    #rack-tooltip .tt-server span {
+      display:block; padding:2px 0; color:#ddeeff;
+    }
   </style>
 </head>
 <body>
+<div id="rack-tooltip"></div>
 <div id="app">
 
   <!-- TOP-LEFT: Title + Controls -->
@@ -210,6 +231,29 @@ scene.add(fill);
 const coldGlow = new THREE.PointLight(0x2288ff, 0.6, 12);
 coldGlow.position.set(0, 2.8, 0);
 scene.add(coldGlow);
+
+// ─── RACK → SERVER MAPPING ───────────────────────────────────────────────────
+const SERVER_MAP = {
+  'DA0A': ['TUC-RST50DA0A (ZTE)'],
+  'DA0':  ['CORE-NFVI', 'RST-EXP-POD22-RACK4', 'TH-RST-EXP22-RACK4 (NOKIA)'],
+  'DA2':  ['CORE-NFVI', 'RST-EXP-POD11-RACK5', 'A0211EXPRACK1105 (NOKIA)'],
+  'DA3':  ['CORE-NFVI', 'RST-EXP-POD11-RACK4', 'A0211EXPRACK1104 (NOKIA)'],
+  'DA4':  ['CORE-NFVI', 'RST-EXP-POD11-RACK3', 'A0211EXPRACK1103 (NOKIA)'],
+  'DA6':  ['CORE-NFVI', 'RST-EXP-POD11-RACK2', 'A0211EXPRACK1102 (NOKIA)'],
+  'DA7':  ['CORE-NFVI', 'RST-NEP-POD21-RACK1', 'TH-RST-NEP21-RACK1 (NOKIA)'],
+  'DA8':  ['CORE-NFVI', 'RST-NEP-POD11-RACK3', 'A0211NEPRACK1103 (NOKIA)'],
+  'DB0C': ['TUC-RST50S01ZTRACDB0C (ZTE)'],
+  'DB0B': ['TUC-RST50S03ZTRACDB0B (ZTE)'],
+  'DB0':  ['Core/NFVI', 'RST-EXP-POD15-RACK1', 'A0211EXPRACK1501 (NOKIA)'],
+  'DB1':  ['Core/NFVI', 'RST-EXP-POD15-RACK2', 'A0211EXPRACK1502 (NOKIA)'],
+  'DB2':  ['Core/NFVI', 'RST-EXP-POD15-RACK3', 'A0211EXPRACK1503 (NOKIA)'],
+  'DB4':  ['Core/NFVI', 'RST-EXP-POD15-RACK4', 'A0211EXPRACK1504 (NOKIA)'],
+  'DB5':  ['Core/NFVI', 'RST-EXP-POD15-RACK5', 'A0211EXPRACK1505 (NOKIA)'],
+  'DB6':  ['Core/NFVI', 'RST-NEP-POD11-RACK1', 'A0211NEPRACK1101 (NOKIA)'],
+  'DB8':  ['Core/NFVI', 'RST-NEP-POD11-RACK2', 'A0211NEPRACK1202 (NOKIA)'],
+};
+
+const rackMeshes = [];  // filled by buildRack()
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const RDX  = 1.0;   // rack depth  (X axis, front-to-back)
@@ -467,7 +511,11 @@ function buildRack(name, cx, cz, frontDir, wz, labelWz) {
   g.add(lbl);
 
   g.position.set(cx, cy, cz);
+  g.userData.rackName = name;
+  // tag all child meshes for raycasting
+  g.traverse(obj => { if (obj.isMesh) obj.userData.rackName = name; });
   scene.add(g);
+  rackMeshes.push(g);
   return g;
 }
 
@@ -796,7 +844,39 @@ cv.addEventListener('mousedown', e => {
   if (e.button === 0) isLeft = true;
   if (e.button === 2) isRight = true;
   prev = { x: e.clientX, y: e.clientY };
+  hideTooltip();
 });
+const raycaster = new THREE.Raycaster();
+const ttEl = document.getElementById('rack-tooltip');
+let ttVisible = false;
+
+function showTooltip(name, x, y) {
+  const servers = SERVER_MAP[name];
+  let html = `<div class="tt-rack">🖥 ${name}</div>`;
+  if (servers && servers.length) {
+    html += `<div class="tt-server">`;
+    servers.forEach(s => { html += `<span>${s}</span>`; });
+    html += `</div>`;
+  } else {
+    html += `<div class="tt-server"><span style="color:#6688aa">In-row Cooling Unit</span></div>`;
+  }
+  ttEl.innerHTML = html;
+  ttEl.style.display = 'block';
+  // position near cursor, keep inside viewport
+  const tw = 240, th = ttEl.offsetHeight || 90;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  let lx = x + 16, ly = y - 10;
+  if (lx + tw > vw - 8) lx = x - tw - 10;
+  if (ly + th > vh - 8) ly = vh - th - 8;
+  ttEl.style.left = lx + 'px';
+  ttEl.style.top  = ly + 'px';
+  ttVisible = true;
+}
+function hideTooltip() {
+  ttEl.style.display = 'none';
+  ttVisible = false;
+}
+
 cv.addEventListener('mousemove', e => {
   const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
   if (isLeft) {
@@ -814,8 +894,30 @@ cv.addEventListener('mousemove', e => {
   }
   prev = { x: e.clientX, y: e.clientY };
   updateCam();
+
+  // ── Raycasting tooltip ──
+  if (!isLeft && !isRight) {
+    const rect = cv.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+      ((e.clientX - rect.left) / rect.width)  * 2 - 1,
+      -((e.clientY - rect.top) / rect.height) * 2 + 1
+    );
+    raycaster.setFromCamera(mouse, camera);
+    // collect all child meshes from rackMeshes groups
+    const targets = [];
+    rackMeshes.forEach(g => g.traverse(o => { if (o.isMesh) targets.push(o); }));
+    const hits = raycaster.intersectObjects(targets, false);
+    if (hits.length > 0) {
+      const rName = hits[0].object.userData.rackName;
+      if (rName) {
+        showTooltip(rName, e.clientX, e.clientY);
+        cv.style.cursor = 'pointer';
+      } else { hideTooltip(); cv.style.cursor = ''; }
+    } else { hideTooltip(); cv.style.cursor = ''; }
+  } else { hideTooltip(); }
 });
 cv.addEventListener('mouseup', () => { isLeft = false; isRight = false; });
+cv.addEventListener('mouseleave', () => { hideTooltip(); cv.style.cursor = ''; });
 cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('wheel', e => {
   radius = Math.max(3, Math.min(55, radius + e.deltaY * 0.02));
