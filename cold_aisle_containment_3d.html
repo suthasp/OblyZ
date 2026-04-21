@@ -108,6 +108,11 @@
       max-width:240px; display:none;
       box-shadow:0 4px 20px rgba(0,80,200,0.35);
     }
+    @media (max-width: 768px) {
+      #rack-tooltip { font-size:13px; padding:12px 16px; max-width:80vw; }
+      #rack-tooltip .tt-rack { font-size:14px; }
+      #rack-tooltip .tt-server span { font-size:12px; padding:3px 0; }
+    }
     #rack-tooltip .tt-rack {
       font-size:13px; font-weight:700; color:#55aaff;
       display:flex; align-items:center; justify-content:space-between; gap:10px;
@@ -872,12 +877,23 @@ function showTooltip(name, x, y) {
   }
   ttEl.innerHTML = html;
   ttEl.style.display = 'block';
-  // position near cursor, keep inside viewport
-  const tw = 240, th = ttEl.offsetHeight || 90;
+  // position near cursor/tap, keep inside viewport
+  const tw = Math.min(240, window.innerWidth * 0.8);
+  const th = ttEl.offsetHeight || 90;
   const vw = window.innerWidth, vh = window.innerHeight;
-  let lx = x + 16, ly = y - 10;
-  if (lx + tw > vw - 8) lx = x - tw - 10;
-  if (ly + th > vh - 8) ly = vh - th - 8;
+  const isMobile = vw <= 768;
+  let lx, ly;
+  if (isMobile) {
+    // center horizontally above the tap point on mobile
+    lx = Math.max(8, Math.min(vw - tw - 8, x - tw / 2));
+    ly = y - th - 20;
+    if (ly < 8) ly = y + 30;
+  } else {
+    lx = x + 16;
+    ly = y - 10;
+    if (lx + tw > vw - 8) lx = x - tw - 10;
+    if (ly + th > vh - 8) ly = vh - th - 8;
+  }
   ttEl.style.left = lx + 'px';
   ttEl.style.top  = ly + 'px';
   ttVisible = true;
@@ -945,11 +961,37 @@ function getTouchDist(a, b) {
   return Math.sqrt(dx * dx + dy * dy);
 }
 
+// tap detection: record start position to distinguish tap vs drag
+let touchStartX = 0, touchStartY = 0, touchHasMoved = false;
+let touchTooltipTimer = null;
+
+function raycastTooltipAt(clientX, clientY) {
+  const rect = cv.getBoundingClientRect();
+  const mouse = new THREE.Vector2(
+    ((clientX - rect.left) / rect.width)  * 2 - 1,
+    -((clientY - rect.top) / rect.height) * 2 + 1
+  );
+  raycaster.setFromCamera(mouse, camera);
+  const targets = [];
+  rackMeshes.forEach(g => g.traverse(o => { if (o.isMesh) targets.push(o); }));
+  const hits = raycaster.intersectObjects(targets, false);
+  if (hits.length > 0) {
+    const rName = hits[0].object.userData.rackName;
+    if (rName) { showTooltip(rName, clientX, clientY); return; }
+  }
+  hideTooltip();
+}
+
 cv.addEventListener('touchstart', e => {
   e.preventDefault();
   touch1 = e.touches[0];
   touch2 = e.touches.length >= 2 ? e.touches[1] : null;
-  if (touch2) lastPinchDist = getTouchDist(touch1, touch2);
+  if (touch2) { lastPinchDist = getTouchDist(touch1, touch2); hideTooltip(); }
+  touchStartX = touch1.clientX;
+  touchStartY = touch1.clientY;
+  touchHasMoved = false;
+  // clear any pending timer
+  if (touchTooltipTimer) { clearTimeout(touchTooltipTimer); touchTooltipTimer = null; }
 }, { passive: false });
 
 cv.addEventListener('touchmove', e => {
@@ -960,6 +1002,12 @@ cv.addEventListener('touchmove', e => {
     // Single finger → rotate
     const t = e.touches[0];
     const dx = t.clientX - touch1.clientX, dy = t.clientY - touch1.clientY;
+    const totalDx = t.clientX - touchStartX, totalDy = t.clientY - touchStartY;
+    // mark as drag if moved more than 6px
+    if (Math.abs(totalDx) > 6 || Math.abs(totalDy) > 6) {
+      touchHasMoved = true;
+      hideTooltip();
+    }
     theta -= dx * 0.009;
     phi = Math.max(0.08, Math.min(Math.PI * 0.46, phi + dy * 0.009));
     touch1 = t;
@@ -967,6 +1015,8 @@ cv.addEventListener('touchmove', e => {
 
   } else if (e.touches.length >= 2) {
     // Two fingers → pinch zoom + pan
+    touchHasMoved = true;
+    hideTooltip();
     const a = e.touches[0], b = e.touches[1];
     const dist = getTouchDist(a, b);
     const mid  = getTouchMid(a, b);
@@ -998,9 +1048,20 @@ cv.addEventListener('touchmove', e => {
 }, { passive: false });
 
 cv.addEventListener('touchend', e => {
+  const endX = touch1 ? touch1.clientX : touchStartX;
+  const endY = touch1 ? touch1.clientY : touchStartY;
   touch1 = e.touches[0] || null;
   touch2 = e.touches[1] || null;
   if (!touch2) lastPinchDist = null;
+
+  // Short tap (no drag, single finger) → show tooltip
+  if (!touchHasMoved && e.changedTouches.length === 1) {
+    const t = e.changedTouches[0];
+    raycastTooltipAt(t.clientX, t.clientY);
+    // auto-hide after 4 seconds
+    if (touchTooltipTimer) clearTimeout(touchTooltipTimer);
+    touchTooltipTimer = setTimeout(() => { hideTooltip(); touchTooltipTimer = null; }, 4000);
+  }
 }, { passive: false });
 
 // ─── ANIMATION ────────────────────────────────────────────────────────────────
