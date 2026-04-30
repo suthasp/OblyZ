@@ -1148,6 +1148,58 @@ function buildAirflow() {
 }
 
 // ─── AISLE LABELS ─────────────────────────────────────────────────────────────
+// ─── COLD AISLE WIND ANIMATION ────────────────────────────────────────────────
+// Particles travel STRAIGHT across cold aisle from RAC front → opposite rack front
+
+const windParticles = [];   // { mesh, srcX, dstX, z, y, phase, speed }
+
+function buildColdAisleWind() {
+  const faceA = AX + RDX / 2;   // Row A front face X = -0.6  (cold-aisle side)
+  const faceB = BX - RDX / 2;   // Row B front face X = +0.6
+
+  // Each RAC: source face, destination face, its Z center
+  // Row B RACs → blow cold air LEFT toward Row A (DA)
+  // Row A RACs → blow cold air RIGHT toward Row B (DB)
+  const racs = [
+    { srcX: faceB, dstX: faceA, zc: START_Z  +  2*SP },   // RAC-329
+    { srcX: faceA, dstX: faceB, zc: START_ZA +  2*SP },   // RAC-328
+    { srcX: faceB, dstX: faceA, zc: START_Z  +  6*SP },   // RAC-325
+    { srcX: faceA, dstX: faceB, zc: START_ZA +  6*SP },   // RAC-327
+    { srcX: faceB, dstX: faceA, zc: START_Z  + 10*SP },   // RAC-326
+  ];
+
+  // Spread wind across Z (covering the racks each RAC serves)
+  const zOffsets = [-SP*0.45, -SP*0.20, 0, SP*0.20, SP*0.45];
+  // Three height levels across the rack
+  const yLevels  = [FH + RH*0.20, FH + RH*0.48, FH + RH*0.76];
+  const N = 5;   // particles per stream (staggered)
+
+  const geo = new THREE.SphereGeometry(0.022, 5, 5);
+
+  racs.forEach((rac, ri) => {
+    zOffsets.forEach((dz, zi) => {
+      yLevels.forEach((y, yi) => {
+        const z = rac.zc + dz;
+        for (let i = 0; i < N; i++) {
+          const mat = new THREE.MeshBasicMaterial({
+            color: 0x44eeff, transparent: true, opacity: 0
+          });
+          const mesh = new THREE.Mesh(geo, mat);
+          scene.add(mesh);
+          windParticles.push({
+            mesh,
+            srcX:  rac.srcX,
+            dstX:  rac.dstX,
+            z, y,
+            phase: (i/N + ri*0.19 + zi*0.11 + yi*0.07) % 1,
+            speed: 0.95 + (Math.random() - 0.5) * 0.25
+          });
+        }
+      });
+    });
+  });
+}
+
 function buildLabels() {
   const labelY = FH + RH + 0.65;
 
@@ -1191,6 +1243,7 @@ ROW_B.forEach((name, i) => {
 buildContainment();
 buildAirflow();
 buildLabels();
+buildColdAisleWind();
 
 // ─── CAMERA ORBIT CONTROL ─────────────────────────────────────────────────────
 let theta = 0.45, phi = 0.92, radius = 17;
@@ -1435,6 +1488,18 @@ function animate() {
   MAT.hotAir.opacity  = 0.55 + 0.15 * Math.sin(t * 1.8 + Math.PI);
   coldGlow.intensity  = 0.50 + 0.10 * Math.sin(t * 2.2);
 
+  // ── Cold aisle wind particles: travel straight across cold aisle ──
+  windParticles.forEach(p => {
+    const phase = ((t * p.speed) + p.phase) % 1;
+    const x = p.srcX + (p.dstX - p.srcX) * phase;
+    p.mesh.position.set(x, p.y, p.z);
+    // Fade in from source (0→12%), full opacity (12→80%), fade out at destination (80→100%)
+    const fade = phase < 0.12 ? phase / 0.12
+               : phase > 0.80 ? (1 - phase) / 0.20
+               : 1;
+    p.mesh.material.opacity = 0.82 * fade;
+  });
+
   // ── Animate flow droplets ──
   animArrows.forEach(arrow => {
     arrow.particles.forEach((p, idx) => {
@@ -1564,10 +1629,8 @@ function calcPhysics() {
 
   // COP decreases with higher return temp
   const cop = Math.max(1.8, 3.4 - (SIM.returnTemp - 32) * 0.07);
-  SIM.cracOutput = SIM.itLoad / cop;
-  SIM.pue = (SIM.itLoad + SIM.cracOutput) / SIM.itLoad;
 
-  // Per-CRAC
+  // Per-CRAC — assign individual kW output first
   const kwEach = SIM.itLoad / SIM.activeCRACs;
   SIM.cracs.forEach(c => {
     if (c.status === 'RUN') {
@@ -1577,6 +1640,11 @@ function calcPhysics() {
       c.supTemp = SIM.supplyTemp + jitter(0.2);
     }
   });
+
+  // CRAC Output = sum of all running CRAC units' kW
+  SIM.cracOutput = SIM.cracs.reduce((sum, c) => sum + (c.status === 'RUN' ? c.kw : 0), 0);
+  const cracElec = SIM.cracOutput / cop;   // electrical power consumed by CRACs
+  SIM.pue = (SIM.itLoad + cracElec) / SIM.itLoad;
 
   // Humidifier: on if humidity < setpoint (simplified: humidity drifts)
   SIM.humidifier = (40 + jitter(3)) < (SIM.setpointHumidity - 5);
