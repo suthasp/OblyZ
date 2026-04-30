@@ -652,7 +652,8 @@ function buildContainment() {
   buildBipartingDoor(C_EZ, -1);   // back
 }
 
-// ─── AIR FLOW ARROWS ──────────────────────────────────────────────────────────
+// ─── AIR FLOW ARROWS — ANIMATED ───────────────────────────────────────────────
+const animArrows = [];   // { curve, particles[], speed, color }
 
 // Cubic Bezier scalar interpolation
 function cubicBez(p0, p1, p2, p3, t) {
@@ -660,63 +661,79 @@ function cubicBez(p0, p1, p2, p3, t) {
   return u*u*u*p0 + 3*u*u*t*p1 + 3*u*t*t*p2 + t*t*t*p3;
 }
 
-// Horizontal C-curve tube arrow in XZ plane:
-// exits back of source rack (backX, Y, srcZ) outward to swingX,
-// sweeps along Z to dstZ, then curves back into RAC back face at (backX, Y, dstZ).
-function hotCurveArrow(backX, y, srcZ, swingX, dstZ) {
-  const COL = 0xff4422;
-  const mat = new THREE.MeshBasicMaterial({ color: COL, transparent: true, opacity: 0.80 });
-  const STEPS = 32;
-  const pts = [];
-  for (let s = 0; s <= STEPS; s++) {
-    const t = s / STEPS;
-    // Cubic bezier in X (outward then back), linear-ish in Z
-    const x = cubicBez(backX, swingX, swingX, backX, t);
-    const z = cubicBez(srcZ,  srcZ,   dstZ,   dstZ,  t);
-    pts.push(new THREE.Vector3(x, y, z));
-  }
-  const curve  = new THREE.CatmullRomCurve3(pts);
-  const tubeGeo = new THREE.TubeGeometry(curve, STEPS, 0.032, 8, false);
-  scene.add(new THREE.Mesh(tubeGeo, mat));
+// Build animated flow arrow: faint guide tube + 4 glowing droplets with tails
+function makeFlowArrow(pts, color, speed) {
+  const curve = new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.5);
 
-  // Arrowhead: cone aligned to final tangent direction (into RAC)
-  const endPt  = pts[STEPS];
-  const prevPt = pts[STEPS - 2];
-  const dir    = new THREE.Vector3().subVectors(endPt, prevPt).normalize();
-  const cone   = new THREE.Mesh(new THREE.ConeGeometry(0.10, 0.24, 8), mat);
+  // ── Faint guide tube ──
+  const guideGeo = new THREE.TubeGeometry(curve, 44, 0.013, 5, false);
+  const guideMat = new THREE.MeshBasicMaterial({
+    color, transparent: true, opacity: 0.18, depthWrite: false
+  });
+  scene.add(new THREE.Mesh(guideGeo, guideMat));
+
+  // ── Static arrowhead cone at endpoint ──
+  const endPt  = pts[pts.length - 1];
+  const prevPt = pts[pts.length - 3];
+  const endDir = new THREE.Vector3().subVectors(endPt, prevPt).normalize();
+  const coneMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.80 });
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.20, 8), coneMat);
   cone.position.copy(endPt);
-  cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), endDir);
   scene.add(cone);
+
+  // ── Animated droplets (head + 2 trailing spheres) ──
+  const N = 4;
+  const particles = [];
+  for (let i = 0; i < N; i++) {
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.052, 8, 8),
+      new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.70,
+        transparent: true, opacity: 0.92, shininess: 120 })
+    );
+    const tail1 = new THREE.Mesh(
+      new THREE.SphereGeometry(0.035, 7, 7),
+      new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.45,
+        transparent: true, opacity: 0.55 })
+    );
+    const tail2 = new THREE.Mesh(
+      new THREE.SphereGeometry(0.022, 6, 6),
+      new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.25,
+        transparent: true, opacity: 0.28 })
+    );
+    scene.add(head); scene.add(tail1); scene.add(tail2);
+    particles.push({ head, tail1, tail2 });
+  }
+
+  animArrows.push({ curve, particles, speed, N });
 }
 
-// Cold air C-curve: exits RAC front → swings into cold aisle → enters DA/DB front
-// faceX   = X of both RAC front and DA/DB front (same plane)
-// swingX  = apex of curve inside cold aisle
-// racZ    = source (RAC front Z)
-// dstZ    = destination (DA/DB front Z)
-function coldCurveArrow(faceX, y, racZ, swingX, dstZ) {
-  const mat = new THREE.MeshBasicMaterial({ color: 0x22aaff, transparent: true, opacity: 0.82 });
-  const STEPS = 32;
+function hotCurveArrow(backX, y, srcZ, swingX, dstZ) {
+  const STEPS = 40;
   const pts = [];
   for (let s = 0; s <= STEPS; s++) {
-    const t = s / STEPS;
-    // Bezier: X swings out into cold aisle then back; Z sweeps from racZ to dstZ
-    const x = cubicBez(faceX, swingX, swingX, faceX, t);
-    const z = cubicBez(racZ,  racZ,   dstZ,   dstZ,  t);
-    pts.push(new THREE.Vector3(x, y, z));
+    const tt = s / STEPS;
+    pts.push(new THREE.Vector3(
+      cubicBez(backX, swingX, swingX, backX, tt),
+      y,
+      cubicBez(srcZ,  srcZ,   dstZ,   dstZ,  tt)
+    ));
   }
-  const curve   = new THREE.CatmullRomCurve3(pts);
-  const tubeGeo = new THREE.TubeGeometry(curve, STEPS, 0.032, 8, false);
-  scene.add(new THREE.Mesh(tubeGeo, mat));
+  makeFlowArrow(pts, 0xff4422, 0.24);
+}
 
-  // Arrowhead at destination, aligned with final tangent (into DA/DB rack)
-  const endPt  = pts[STEPS];
-  const prevPt = pts[STEPS - 2];
-  const dir    = new THREE.Vector3().subVectors(endPt, prevPt).normalize();
-  const cone   = new THREE.Mesh(new THREE.ConeGeometry(0.10, 0.24, 8), mat);
-  cone.position.copy(endPt);
-  cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-  scene.add(cone);
+function coldCurveArrow(faceX, y, racZ, swingX, dstZ) {
+  const STEPS = 40;
+  const pts = [];
+  for (let s = 0; s <= STEPS; s++) {
+    const tt = s / STEPS;
+    pts.push(new THREE.Vector3(
+      cubicBez(faceX, swingX, swingX, faceX, tt),
+      y,
+      cubicBez(racZ,  racZ,   dstZ,   dstZ,  tt)
+    ));
+  }
+  makeFlowArrow(pts, 0x22ccff, 0.24);
 }
 
 function buildAirflow() {
@@ -1066,12 +1083,38 @@ cv.addEventListener('touchend', e => {
 
 // ─── ANIMATION ────────────────────────────────────────────────────────────────
 let t = 0;
+const TAIL1_GAP = 0.042;   // t-offset behind head for tail1
+const TAIL2_GAP = 0.084;   // t-offset behind head for tail2
+
 function animate() {
   requestAnimationFrame(animate);
   t += 0.016;
+
+  // Glass / aisle pulse
   MAT.coldAir.opacity = 0.60 + 0.15 * Math.sin(t * 1.8);
   MAT.hotAir.opacity  = 0.55 + 0.15 * Math.sin(t * 1.8 + Math.PI);
   coldGlow.intensity  = 0.50 + 0.10 * Math.sin(t * 2.2);
+
+  // ── Animate flow droplets ──
+  animArrows.forEach(arrow => {
+    arrow.particles.forEach((p, idx) => {
+      const phase = ((t * arrow.speed) + idx / arrow.N) % 1;
+      // clamp tails so they don't wrap backwards at phase < gap
+      const ph1 = phase >= TAIL1_GAP ? phase - TAIL1_GAP : phase + (1 - TAIL1_GAP);
+      const ph2 = phase >= TAIL2_GAP ? phase - TAIL2_GAP : phase + (1 - TAIL2_GAP);
+
+      p.head.position.copy(arrow.curve.getPoint(phase));
+      p.tail1.position.copy(arrow.curve.getPoint(ph1));
+      p.tail2.position.copy(arrow.curve.getPoint(ph2));
+
+      // Fade tails near the tip of the cone (last 8% of path)
+      const near = phase > 0.92 ? (1 - phase) / 0.08 : 1;
+      p.head.material.opacity  = 0.92 * near;
+      p.tail1.material.opacity = 0.55 * near;
+      p.tail2.material.opacity = 0.28 * near;
+    });
+  });
+
   renderer.render(scene, camera);
 }
 animate();
