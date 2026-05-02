@@ -451,31 +451,47 @@ h1 span{color:var(--blue);display:block;font-size:11px;font-weight:400;opacity:.
     </div>
 
     <div class="section-label">🔄 Transformer (Step Down: 22kV → 400V)</div>
-    <div class="comp-quad">
-      <div class="comp c-tr" id="tr3" onclick="showDetail('tr3')">
-        <div class="comp-head"><span class="comp-id"><span class="led led-on" id="tr3-led"></span>TR3</span><span class="comp-cap">1,500 KVA</span></div>
-        <div class="comp-row2"><span>493 KVA</span><span>MDB13A</span></div>
-        <div class="load-bar"><div class="load-fill fill-g" style="width:32.9%"></div></div>
-        <div class="load-pct"><span style="color:var(--green)">32.9%</span></div>
+    <!-- TR3/TR5/TR4 และ TR6 อยู่ระดับเดียวกัน แต่แยก block -->
+    <div style="display:flex;gap:8px;align-items:stretch;margin-bottom:6px;">
+
+      <!-- Block A: TR3, TR5, TR4 -->
+      <div style="flex:3;display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;
+                  background:rgba(0,112,144,.1);border:1px solid rgba(0,176,192,.35);
+                  border-radius:8px;padding:6px;">
+        <div class="comp c-tr" id="tr3" onclick="showDetail('tr3')" style="margin-bottom:0">
+          <div class="comp-head"><span class="comp-id"><span class="led led-on" id="tr3-led"></span>TR3</span><span class="comp-cap">1,500 KVA</span></div>
+          <div class="comp-row2"><span>493 KVA</span><span>MDB13A</span></div>
+          <div class="load-bar"><div class="load-fill fill-g" style="width:32.9%"></div></div>
+          <div class="load-pct"><span style="color:var(--green)">32.9%</span></div>
+        </div>
+        <div class="comp c-tr" id="tr5" onclick="showDetail('tr5')" style="margin-bottom:0">
+          <div class="comp-head"><span class="comp-id"><span class="led led-on" id="tr5-led"></span>TR5</span><span class="comp-cap">2,000 KVA</span></div>
+          <div class="comp-row2"><span>899 KVA</span><span>MDB14A</span></div>
+          <div class="load-bar"><div class="load-fill fill-g" style="width:45%"></div></div>
+          <div class="load-pct"><span style="color:var(--green)">45.0%</span></div>
+        </div>
+        <div class="comp c-tr" id="tr4" onclick="showDetail('tr4')" style="margin-bottom:0">
+          <div class="comp-head"><span class="comp-id"><span class="led led-on" id="tr4-led"></span>TR4</span><span class="comp-cap">1,500 KVA</span></div>
+          <div class="comp-row2"><span>520 KVA</span><span>MDB13B</span></div>
+          <div class="load-bar"><div class="load-fill fill-g" style="width:34.7%"></div></div>
+          <div class="load-pct"><span style="color:var(--green)">34.7%</span></div>
+        </div>
       </div>
-      <div class="comp c-tr" id="tr5" onclick="showDetail('tr5')">
-        <div class="comp-head"><span class="comp-id"><span class="led led-on" id="tr5-led"></span>TR5</span><span class="comp-cap">2,000 KVA</span></div>
-        <div class="comp-row2"><span>899 KVA</span><span>MDB14A</span></div>
-        <div class="load-bar"><div class="load-fill fill-g" style="width:45%"></div></div>
-        <div class="load-pct"><span style="color:var(--green)">45.0%</span></div>
+
+      <!-- Connector -->
+      <div style="display:flex;align-items:center;color:rgba(0,229,255,.5);font-size:14px;flex-shrink:0;">─</div>
+
+      <!-- Block B: TR6 (แยก block เดี่ยว) -->
+      <div style="flex:1;background:rgba(0,80,100,.12);border:1px solid rgba(29,233,182,.35);
+                  border-radius:8px;padding:6px;display:flex;align-items:stretch;">
+        <div class="comp c-tr" id="tr6" onclick="showDetail('tr6')" style="margin-bottom:0;width:100%;">
+          <div class="comp-head"><span class="comp-id"><span class="led led-on" id="tr6-led"></span>TR6</span><span class="comp-cap">2,000 KVA</span></div>
+          <div class="comp-row2"><span>635 KVA</span><span>MDB14B</span></div>
+          <div class="load-bar"><div class="load-fill fill-g" style="width:31.8%"></div></div>
+          <div class="load-pct"><span style="color:var(--green)">31.8%</span></div>
+        </div>
       </div>
-      <div class="comp c-tr" id="tr4" onclick="showDetail('tr4')">
-        <div class="comp-head"><span class="comp-id"><span class="led led-on" id="tr4-led"></span>TR4</span><span class="comp-cap">1,500 KVA</span></div>
-        <div class="comp-row2"><span>520 KVA</span><span>MDB13B</span></div>
-        <div class="load-bar"><div class="load-fill fill-g" style="width:34.7%"></div></div>
-        <div class="load-pct"><span style="color:var(--green)">34.7%</span></div>
-      </div>
-      <div class="comp c-tr" id="tr6" onclick="showDetail('tr6')">
-        <div class="comp-head"><span class="comp-id"><span class="led led-on" id="tr6-led"></span>TR6</span><span class="comp-cap">2,000 KVA</span></div>
-        <div class="comp-row2"><span>635 KVA</span><span>MDB14B</span></div>
-        <div class="load-bar"><div class="load-fill fill-g" style="width:31.8%"></div></div>
-        <div class="load-pct"><span style="color:var(--green)">31.8%</span></div>
-      </div>
+
     </div>
 
     <div class="section-label">🔌 Main Distribution Board (400V)</div>
@@ -536,23 +552,23 @@ h1 span{color:var(--blue);display:block;font-size:11px;font-weight:400;opacity:.
     <div style="margin-bottom:4px;font-size:9px;color:var(--red);text-align:center;animation:blink .8s infinite;">
       ⚠ Single GEN: 92.6% — เกิน 80% (ต้องใช้ทั้งสอง GEN)
     </div>
-    <div class="comp-quad">
-      <div class="comp c-gen" id="gen5" onclick="showDetail('gen5')">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;align-items:stretch;">
+      <div class="comp c-gen" id="gen5" onclick="showDetail('gen5')" style="margin-bottom:0;">
         <div class="comp-head"><span class="comp-id"><span class="led led-off" id="gen5-led"></span>GEN5</span><span class="comp-cap">2,500 KVA</span></div>
         <div class="comp-row2"><span>2,000 KW max</span><span id="gen5-load-txt">Standby</span></div>
         <div class="load-bar"><div class="load-fill fill-g" id="gen5-bar" style="width:0%"></div></div>
         <div class="load-pct" id="gen5-pct"><span style="color:var(--dim)">0%</span></div>
         <div class="alert-badge" style="display:none" id="gen5-alert"><span class="a-dot"></span>Single: 92.6% ⚠</div>
       </div>
-      <div class="comp c-gen" id="gen6" onclick="showDetail('gen6')">
+      <div class="comp c-gen" id="gen6" onclick="showDetail('gen6')" style="margin-bottom:0;">
         <div class="comp-head"><span class="comp-id"><span class="led led-off" id="gen6-led"></span>GEN6</span><span class="comp-cap">2,500 KVA</span></div>
         <div class="comp-row2"><span>2,000 KW max</span><span id="gen6-load-txt">Standby</span></div>
         <div class="load-bar"><div class="load-fill fill-g" id="gen6-bar" style="width:0%"></div></div>
         <div class="load-pct" id="gen6-pct"><span style="color:var(--dim)">0%</span></div>
       </div>
-      <div class="comp c-gen" id="gen7" onclick="showDetail('gen7')" style="grid-column:span 2;">
-        <div class="comp-head"><span class="comp-id"><span class="led led-off" id="gen7-led"></span>GEN7</span><span class="comp-cap">2,000 KVA / 1,600 KW max</span></div>
-        <div class="comp-row2"><span>Covers: EMDB14B</span><span id="gen7-load-txt">Standby</span></div>
+      <div class="comp c-gen" id="gen7" onclick="showDetail('gen7')" style="margin-bottom:0;">
+        <div class="comp-head"><span class="comp-id"><span class="led led-off" id="gen7-led"></span>GEN7</span><span class="comp-cap">2,000 KVA</span></div>
+        <div class="comp-row2"><span>1,600 KW max</span><span id="gen7-load-txt">Standby</span></div>
         <div class="load-bar"><div class="load-fill fill-g" id="gen7-bar" style="width:0%"></div></div>
         <div class="load-pct" id="gen7-pct"><span style="color:var(--dim)">0%</span></div>
       </div>
