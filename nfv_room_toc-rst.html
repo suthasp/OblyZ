@@ -659,7 +659,12 @@ const MAT = {
   coldAir:  new THREE.MeshBasicMaterial({ color:0x22aaff, transparent:true, opacity:0.75 }),
   hotAir:   new THREE.MeshBasicMaterial({ color:0xff4422, transparent:true, opacity:0.70 }),
   wires:    new THREE.LineBasicMaterial({ color:0x334455, linewidth:1 }),
+  racFail:  new THREE.MeshPhongMaterial({ color:0x880000, emissive:0x440000, shininess:60 }),
+  racFailEdge: new THREE.LineBasicMaterial({ color:0xff2200 }),
 };
+
+// Map RAC name → Three.js group for status sync
+const racGroupMap = {};
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 function edges(geo, mat) {
@@ -833,6 +838,7 @@ function buildRack(name, cx, cz, frontDir, wz, labelWz) {
   g.add(body);
   const el = edges(bodyGeo, isRAC ? MAT.racEdge : MAT.rackEdge);
   body.add(el);
+  if (isRAC) { g.userData.body = body; g.userData.bodyEdge = el; }
 
   // Front panels (server units)
   const rows = 7;
@@ -872,6 +878,7 @@ function buildRack(name, cx, cz, frontDir, wz, labelWz) {
   g.traverse(obj => { if (obj.isMesh) obj.userData.rackName = name; });
   scene.add(g);
   rackMeshes.push(g);
+  if (isRAC) racGroupMap[name] = g;
   return g;
 }
 
@@ -1797,6 +1804,58 @@ function doSpike() {
   setTimeout(()=>{ el('btn-spike').disabled=false; }, 20000);
 }
 
+// ─── 3D STATUS SYNC ──────────────────────────────────────────────────────────
+function makeFailSprite() {
+  const cw = 240, ch = 64;
+  const cv = document.createElement('canvas');
+  cv.width = cw; cv.height = ch;
+  const ctx = cv.getContext('2d');
+  // Red background
+  ctx.fillStyle = 'rgba(180,0,0,0.92)';
+  const r = 8;
+  ctx.beginPath();
+  ctx.moveTo(r,0); ctx.lineTo(cw-r,0); ctx.arcTo(cw,0,cw,r,r);
+  ctx.lineTo(cw,ch-r); ctx.arcTo(cw,ch,cw-r,ch,r);
+  ctx.lineTo(r,ch); ctx.arcTo(0,ch,0,ch-r,r);
+  ctx.lineTo(0,r); ctx.arcTo(0,0,r,0,r); ctx.closePath(); ctx.fill();
+  // White border
+  ctx.strokeStyle = '#ff6644'; ctx.lineWidth = 3;
+  ctx.stroke();
+  // Text
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 28px Consolas,monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('⚠ FAIL', cw/2, ch/2);
+  const tex = new THREE.CanvasTexture(cv);
+  const mat = new THREE.SpriteMaterial({ map:tex, transparent:true, depthTest:false });
+  const sp = new THREE.Sprite(mat);
+  const aspect = cw / ch;
+  sp.scale.set(aspect * 0.45, 0.45, 1);
+  sp.name = 'fail-label';
+  return sp;
+}
+
+function setRac3dFail(racName, isFailed) {
+  const g = racGroupMap[racName];
+  if (!g) return;
+  // Change body color
+  if (g.userData.body) {
+    g.userData.body.material = isFailed ? MAT.racFail : MAT.rac;
+  }
+  if (g.userData.bodyEdge) {
+    g.userData.bodyEdge.material = isFailed ? MAT.racFailEdge : MAT.racEdge;
+  }
+  // Add / remove FAIL overlay sprite
+  const existing = g.getObjectByName('fail-label');
+  if (isFailed && !existing) {
+    const sp = makeFailSprite();
+    sp.position.set(0, RH / 2 + 0.55, 0);
+    g.add(sp);
+  } else if (!isFailed && existing) {
+    g.remove(existing);
+  }
+}
+
 function doFail() {
   const sel = el('fail-select').value;
   let pick;
@@ -1817,6 +1876,7 @@ function doFail() {
   pick.status = 'FAIL';
   pick.kw = 0; pick.comp = 0; pick.fan = 0;
   SIM.failedIdx = pick.id;
+  setRac3dFail(pick.name, true);   // ← sync 3D
   addEvent(`🔴 ${pick.name} FAILURE simulated — Removed from cooling loop`, 'critical');
   // re-check after state update
   const stillRunning = SIM.cracs.filter(c=>c.status==='RUN').length;
@@ -1828,7 +1888,10 @@ function doReset() {
   SIM.setpointTemp=19; SIM.setpointHumidity=45; SIM.serverLoad=100;
   SIM.spikeActive=false; SIM.spikeTimer=0;
   SIM.supplyTemp=17.1; SIM.returnTemp=35.1;
-  SIM.cracs.forEach(c=>{ c.status='RUN'; c.kw=28.5; c.comp=81; c.fan=100; c.supTemp=17.1; });
+  SIM.cracs.forEach(c=>{
+    c.status='RUN'; c.kw=28.5; c.comp=81; c.fan=100; c.supTemp=17.1;
+    setRac3dFail(c.name, false);  // ← restore 3D to normal
+  });
   el('ctrl-setpoint').value=19; el('lbl-setpoint').textContent='19°C';
   el('ctrl-humidity').value=45; el('lbl-humidity').textContent='45%';
   el('ctrl-load').value=100;    el('lbl-load').textContent='100%';
