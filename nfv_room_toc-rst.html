@@ -1023,15 +1023,8 @@ function makeFlowArrow(pts, color, speed) {
   });
   scene.add(new THREE.Mesh(guideGeo, guideMat));
 
-  // ── Static arrowhead cone at endpoint ──
-  const endPt  = pts[pts.length - 1];
-  const prevPt = pts[pts.length - 3];
-  const endDir = new THREE.Vector3().subVectors(endPt, prevPt).normalize();
-  const coneMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.80 });
-  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.20, 8), coneMat);
-  cone.position.copy(endPt);
-  cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), endDir);
-  scene.add(cone);
+  // arrowhead cone removed
+  const coneMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0 });
 
   // ── Animated droplets (head + 2 trailing spheres) ──
   const N = 4;
