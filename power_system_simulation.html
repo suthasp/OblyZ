@@ -260,7 +260,7 @@ h1 span{color:var(--blue);display:block;font-size:11px;font-weight:400;opacity:.
   <!-- ════ AREA 12 ════ -->
   <div class="area a12" id="area12">
     <div class="area-header">
-      <span>⚡</span> พื้นที่ 12 (Building 12)
+      <span>⚡</span> Area 12 (MDB 12)
     </div>
 
     <!-- PEA Source -->
@@ -356,7 +356,7 @@ h1 span{color:var(--blue);display:block;font-size:11px;font-weight:400;opacity:.
   <!-- ════ AREA 11 ════ -->
   <div class="area a11" id="area11">
     <div class="area-header">
-      <span>⚡</span> พื้นที่ 11 (Building 11)
+      <span>⚡</span> Area 11 (MDB 11)
     </div>
 
     <div class="pea-block" id="pea11">
@@ -438,7 +438,7 @@ h1 span{color:var(--blue);display:block;font-size:11px;font-weight:400;opacity:.
   <!-- ════ AREA 13-14 ════ -->
   <div class="area a1314" id="area1314">
     <div class="area-header">
-      <span>⚡</span> พื้นที่ 13-14 (Building 13-14)
+      <span>⚡</span> Area 13-14 (MDB 13-14)
     </div>
 
     <div class="pea-block" id="pea1314">
@@ -972,7 +972,7 @@ function showDetail(id) {
   if (d.type === 'tr') {
     const c = d.pct>=80?'#ff5252':d.pct>=70?'#ffd740':'#00e676';
     html = `
-      <div class="d-row"><span class="d-key">พื้นที่</span><span class="d-val">Building ${d.area}</span></div>
+      <div class="d-row"><span class="d-key">Area</span><span class="d-val">${d.area === '1314' ? '13-14' : d.area}</span></div>
       <div class="d-row"><span class="d-key">ความจุ</span><span class="d-val">${d.kva.toLocaleString()} KVA</span></div>
       <div class="d-row"><span class="d-key">Max Power</span><span class="d-val">${d.kw.toLocaleString()} KW</span></div>
       <div class="d-row"><span class="d-key">Used (KVA)</span><span class="d-val">${d.usedKva.toLocaleString()} KVA</span></div>
@@ -983,14 +983,14 @@ function showDetail(id) {
     `;
   } else if (d.type === 'mdb') {
     html = `
-      <div class="d-row"><span class="d-key">พื้นที่</span><span class="d-val">Building ${d.area}</span></div>
+      <div class="d-row"><span class="d-key">Area</span><span class="d-val">${d.area === '1314' ? '13-14' : d.area}</span></div>
       <div class="d-row"><span class="d-key">Load</span><span class="d-val">${d.kw.toLocaleString()} KW</span></div>
       <div class="d-row"><span class="d-key">ประเภท</span><span class="d-val">Main Distribution Board</span></div>
       <div class="d-row" style="border:none"><span class="d-key">แรงดัน</span><span class="d-val">400V / 3Ph</span></div>
     `;
   } else if (d.type === 'emdb') {
     html = `
-      <div class="d-row"><span class="d-key">พื้นที่</span><span class="d-val">Building ${d.area}</span></div>
+      <div class="d-row"><span class="d-key">Area</span><span class="d-val">${d.area === '1314' ? '13-14' : d.area}</span></div>
       <div class="d-row"><span class="d-key">Load</span><span class="d-val">${d.kw.toLocaleString()} KW</span></div>
       <div class="d-row"><span class="d-key">ประเภท</span><span class="d-val">Emergency Distribution Board</span></div>
       <div class="d-row" style="border:none"><span class="d-key">Power Source</span><span class="d-val">${currentMode==='normal'?'PEA (Normal)':'Generator (Emergency)'}</span></div>
