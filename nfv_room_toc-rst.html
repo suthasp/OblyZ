@@ -1036,27 +1036,22 @@ function makeFlowArrow(pts, color, speed) {
   // ── Animated droplets (head + 2 trailing spheres) ──
   const N = 4;
   const particles = [];
+  const particleMats = [];
   for (let i = 0; i < N; i++) {
-    const head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.052, 8, 8),
-      new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.70,
-        transparent: true, opacity: 0.92, shininess: 120 })
-    );
-    const tail1 = new THREE.Mesh(
-      new THREE.SphereGeometry(0.035, 7, 7),
-      new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.45,
-        transparent: true, opacity: 0.55 })
-    );
-    const tail2 = new THREE.Mesh(
-      new THREE.SphereGeometry(0.022, 6, 6),
-      new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.25,
-        transparent: true, opacity: 0.28 })
-    );
+    const mHead  = new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.70, transparent: true, opacity: 0.92, shininess: 120 });
+    const mTail1 = new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.45, transparent: true, opacity: 0.55 });
+    const mTail2 = new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.25, transparent: true, opacity: 0.28 });
+    const head  = new THREE.Mesh(new THREE.SphereGeometry(0.052, 8, 8), mHead);
+    const tail1 = new THREE.Mesh(new THREE.SphereGeometry(0.035, 7, 7), mTail1);
+    const tail2 = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 6), mTail2);
     scene.add(head); scene.add(tail1); scene.add(tail2);
     particles.push({ head, tail1, tail2 });
+    particleMats.push(mHead, mTail1, mTail2);
   }
 
-  animArrows.push({ curve, particles, speed, N });
+  const entry = { curve, particles, speed, N, guideMat, coneMat, particleMats, racName: null, baseColor: color };
+  animArrows.push(entry);
+  return entry;
 }
 
 function hotCurveArrow(backX, y, srcZ, swingX, dstZ) {
@@ -1073,7 +1068,7 @@ function hotCurveArrow(backX, y, srcZ, swingX, dstZ) {
   makeFlowArrow(pts, 0xff4422, 0.24);
 }
 
-function coldCurveArrow(faceX, y, racZ, swingX, dstZ) {
+function coldCurveArrow(faceX, y, racZ, swingX, dstZ, racName) {
   const STEPS = 40;
   const pts = [];
   for (let s = 0; s <= STEPS; s++) {
@@ -1084,7 +1079,8 @@ function coldCurveArrow(faceX, y, racZ, swingX, dstZ) {
       cubicBez(racZ,  racZ,   dstZ,   dstZ,  tt)
     ));
   }
-  makeFlowArrow(pts, 0x22ccff, 0.24);
+  const entry = makeFlowArrow(pts, 0x22ccff, 0.24);
+  if (racName) entry.racName = racName;
 }
 
 function buildAirflow() {
@@ -1093,13 +1089,13 @@ function buildAirflow() {
 
   // ── Shared RAC index/Z tables ──
   const racA = [
-    { idx: 2, z: START_ZA + 2 * SP },   // RAC-328 (DA0A=idx0, so RAC-328 at idx2 → START_ZA+2*SP)
-    { idx: 6, z: START_ZA + 6 * SP },   // RAC-327
+    { idx: 2, z: START_ZA + 2 * SP, name: 'RAC-328' },
+    { idx: 6, z: START_ZA + 6 * SP, name: 'RAC-327' },
   ];
   const racB = [
-    { idx:  2, z: START_Z +  2 * SP },   // RAC-329
-    { idx:  6, z: START_Z +  6 * SP },   // RAC-325
-    { idx: 10, z: START_Z + 10 * SP },   // RAC-326
+    { idx:  2, z: START_Z +  2 * SP, name: 'RAC-329' },
+    { idx:  6, z: START_Z +  6 * SP, name: 'RAC-325' },
+    { idx: 10, z: START_Z + 10 * SP, name: 'RAC-326' },
   ];
 
   function nearestRac(racList, idx) {
@@ -1146,7 +1142,7 @@ function buildAirflow() {
     if (RAC_SET.has(name)) return;        // DA racks are the destination
     const dstZ = START_ZA + i * SP;
     const rac  = nearestRac(racA, i);
-    coldCurveArrow(frontA, arrowY, rac.z, swingA_cold, dstZ);
+    coldCurveArrow(frontA, arrowY, rac.z, swingA_cold, dstZ, rac.name);
   });
 
   // For each non-RAC DB rack: arrow FROM nearest RAC-B front → TO this DB rack front
@@ -1154,7 +1150,7 @@ function buildAirflow() {
     if (RAC_SET.has(name)) return;        // DB racks are the destination
     const dstZ = START_Z + i * SP;
     const rac  = nearestRac(racB, i);
-    coldCurveArrow(frontB, arrowY, rac.z, swingB_cold, dstZ);
+    coldCurveArrow(frontB, arrowY, rac.z, swingB_cold, dstZ, rac.name);
   });
 }
 
@@ -1172,11 +1168,11 @@ function buildColdAisleWind() {
   // Row B RACs → blow cold air LEFT toward Row A (DA)
   // Row A RACs → blow cold air RIGHT toward Row B (DB)
   const racs = [
-    { srcX: faceB, dstX: faceA, zc: START_Z  +  2*SP },   // RAC-329
-    { srcX: faceA, dstX: faceB, zc: START_ZA +  2*SP },   // RAC-328
-    { srcX: faceB, dstX: faceA, zc: START_Z  +  6*SP },   // RAC-325
-    { srcX: faceA, dstX: faceB, zc: START_ZA +  6*SP },   // RAC-327
-    { srcX: faceB, dstX: faceA, zc: START_Z  + 10*SP },   // RAC-326
+    { name:'RAC-329', srcX: faceB, dstX: faceA, zc: START_Z  +  2*SP },
+    { name:'RAC-328', srcX: faceA, dstX: faceB, zc: START_ZA +  2*SP },
+    { name:'RAC-325', srcX: faceB, dstX: faceA, zc: START_Z  +  6*SP },
+    { name:'RAC-327', srcX: faceA, dstX: faceB, zc: START_ZA +  6*SP },
+    { name:'RAC-326', srcX: faceB, dstX: faceA, zc: START_Z  + 10*SP },
   ];
 
   // Spread wind across Z (covering the racks each RAC serves)
@@ -1199,6 +1195,7 @@ function buildColdAisleWind() {
           scene.add(mesh);
           windParticles.push({
             mesh,
+            racName: rac.name,
             srcX:  rac.srcX,
             dstX:  rac.dstX,
             z, y,
@@ -1804,6 +1801,29 @@ function doSpike() {
   setTimeout(()=>{ el('btn-spike').disabled=false; }, 20000);
 }
 
+// ─── WIND PARTICLE COLOR SYNC ────────────────────────────────────────────────
+function setRacWindColor(racName, isFailed) {
+  windParticles.forEach(p => {
+    if (p.racName === racName) {
+      p.mesh.material.color.setHex(isFailed ? 0xff2200 : 0x44eeff);
+    }
+  });
+}
+
+function setRacArrowColor(racName, isFailed) {
+  const failHex = 0xff2200;
+  animArrows.forEach(arrow => {
+    if (arrow.racName !== racName) return;
+    const c = isFailed ? failHex : arrow.baseColor;
+    arrow.guideMat.color.setHex(c);
+    arrow.coneMat.color.setHex(c);
+    arrow.particleMats.forEach(m => {
+      m.color.setHex(c);
+      m.emissive.setHex(c);
+    });
+  });
+}
+
 // ─── 3D STATUS SYNC ──────────────────────────────────────────────────────────
 function makeFailSprite() {
   const cw = 240, ch = 64;
@@ -1854,6 +1874,10 @@ function setRac3dFail(racName, isFailed) {
   } else if (!isFailed && existing) {
     g.remove(existing);
   }
+  // Change cold aisle wind particle color
+  setRacWindColor(racName, isFailed);
+  // Change curved cold air flow arrow color
+  setRacArrowColor(racName, isFailed);
 }
 
 function doFail() {
