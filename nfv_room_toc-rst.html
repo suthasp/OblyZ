@@ -252,6 +252,8 @@
     .btn-fail:hover{background:linear-gradient(135deg,#3300aa,#5533ff);}
     .btn-reset{background:linear-gradient(135deg,#004422,#006633);color:#00ee88;}
     .btn-reset:hover{background:linear-gradient(135deg,#006633,#009944);}
+    .fail-select{width:100%;background:#0d1a2e;color:#aac4e8;border:1px solid #2244aa;border-radius:7px;padding:6px 8px;font-size:11px;font-weight:600;cursor:pointer;margin-bottom:2px;}
+    .fail-select:focus{outline:none;border-color:#4422ff;}
 
     /* ── EVENT LOG ── */
     .event-log{background:var(--card2);border:1px solid var(--border);border-radius:10px;flex:1;display:flex;flex-direction:column;min-height:140px;}
@@ -526,6 +528,14 @@
         </div>
         <div class="btn-row">
           <button class="btn btn-spike" id="btn-spike" onclick="doSpike()">⚡ Spike Server Load</button>
+          <select class="fail-select" id="fail-select">
+            <option value="random">🎲 Random RAC</option>
+            <option value="0">RAC-325</option>
+            <option value="1">RAC-326</option>
+            <option value="2">RAC-327</option>
+            <option value="3">RAC-328</option>
+            <option value="4">RAC-329</option>
+          </select>
           <button class="btn btn-fail" id="btn-fail" onclick="doFail()">🔴 Simulate CRAC Failure</button>
           <button class="btn btn-reset" onclick="doReset()">↺ Reset Simulation</button>
         </div>
@@ -1586,7 +1596,13 @@ const SIM = {
   serverLoad: 100,
   spikeActive: false, spikeTimer: 0,
   failedIdx: -1,
-  cracs: Array.from({length:5},(_,i)=>({id:i+1,status:'RUN',kw:28.5,comp:81,fan:100,supTemp:17.1})),
+  cracs: [
+    {id:1, name:'RAC-325', status:'RUN', kw:28.5, comp:81, fan:100, supTemp:17.1},
+    {id:2, name:'RAC-326', status:'RUN', kw:28.5, comp:81, fan:100, supTemp:17.1},
+    {id:3, name:'RAC-327', status:'RUN', kw:28.5, comp:81, fan:100, supTemp:17.1},
+    {id:4, name:'RAC-328', status:'RUN', kw:28.5, comp:81, fan:100, supTemp:17.1},
+    {id:5, name:'RAC-329', status:'RUN', kw:28.5, comp:81, fan:100, supTemp:17.1},
+  ],
   // derived
   itLoad:143, supplyTemp:17.1, returnTemp:35.1, deltaT:18.0,
   cracOutput:142.5, availCap:175, pue:1.49, activeCRACs:5,
@@ -1741,7 +1757,7 @@ function buildCracCards() {
   SIM.cracs.forEach((c,i) => {
     grid.innerHTML += `
     <div class="crac-card" id="crac-${i}">
-      <div class="crac-name">CRAC #${c.id}</div>
+      <div class="crac-name">${c.name}</div>
       <div class="crac-temp-box"><div class="crac-temp-val">${c.supTemp.toFixed(1)}°C / 45%</div></div>
       <div class="crac-kw"><span class="kw-cur">${c.kw.toFixed(1)}</span> <span class="kw-max">/ ${CFG.CRAC_MAX} kW</span></div>
       <div class="crac-cap-bar"><div class="crac-cap-fill" style="width:${(c.kw/CFG.CRAC_MAX*100).toFixed(0)}%"></div></div>
@@ -1795,14 +1811,30 @@ function doSpike() {
 }
 
 function doFail() {
-  const running = SIM.cracs.filter(c=>c.status==='RUN');
-  if (running.length === 0) { addEvent('No CRACs running to fail.','warn'); return; }
-  const pick = running[Math.floor(Math.random()*running.length)];
+  const sel = el('fail-select').value;
+  let pick;
+
+  if (sel === 'random') {
+    const running = SIM.cracs.filter(c=>c.status==='RUN');
+    if (running.length === 0) { addEvent('No RACs running to fail.','warn'); return; }
+    pick = running[Math.floor(Math.random()*running.length)];
+  } else {
+    pick = SIM.cracs[parseInt(sel)];
+    if (!pick) return;
+    if (pick.status !== 'RUN') {
+      addEvent(`⚠ ${pick.name} already failed/offline`, 'warn');
+      return;
+    }
+  }
+
   pick.status = 'FAIL';
-  pick.kw=0; pick.comp=0; pick.fan=0;
+  pick.kw = 0; pick.comp = 0; pick.fan = 0;
   SIM.failedIdx = pick.id;
-  addEvent(`🔴 CRAC #${pick.id} FAILURE simulated — Removed from cooling loop`, 'critical');
-  if (SIM.activeCRACs <= 1) addEvent('⚠ Only 1 CRAC remaining — Critical cooling risk!', 'critical');
+  addEvent(`🔴 ${pick.name} FAILURE simulated — Removed from cooling loop`, 'critical');
+  // re-check after state update
+  const stillRunning = SIM.cracs.filter(c=>c.status==='RUN').length;
+  if (stillRunning === 0) addEvent('🚨 ALL RACs offline — Cooling completely lost!', 'critical');
+  else if (stillRunning === 1) addEvent('⚠ Only 1 RAC remaining — Critical cooling risk!', 'critical');
 }
 
 function doReset() {
